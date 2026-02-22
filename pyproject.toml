@@ -1,0 +1,11 @@
+[project]
+name = "inference-gateway"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12.2"
+dependencies = [
+    "fastapi>=0.129.2",
+    "httpx>=0.28.1",
+    "uvicorn[standard]>=0.41.0",
+]

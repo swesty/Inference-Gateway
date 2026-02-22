@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(which flask:*)",
+      "Bash(python3:*)",
+      "Bash(chmod +x:*)",
+      "Bash(uv run:*)",
+      "Bash(bash:*)"
+    ]
+  }
+}

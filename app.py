@@ -76,6 +76,21 @@ async def backend_json_error(_request: Request, exc: BackendJSONError):
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+async def _backend_or_echo_stream(body, request_id, prompt):
+    """Try streaming from backend; fall back to echo on failure."""
+    try:
+        backend_gen = await forward_to_backend(body, request_id, stream=True)
+        async for chunk in backend_gen:
+            yield chunk
+    except (httpx.HTTPError, BackendJSONError):
+        async for chunk in echo_stream(prompt, request_id):
+            yield chunk
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
@@ -119,14 +134,19 @@ async def chat_completions(request: Request):
         resp = build_response(request_id, content, prompt)
         return JSONResponse(resp, headers={"X-Request-ID": request_id})
 
-    # Backend forwarding mode
-    result = await forward_to_backend(body, request_id, stream)
+    # Backend forwarding mode (fall back to echo on failure)
+    prompt = extract_prompt(body)
     if stream:
         return StreamingResponse(
-            result,
+            _backend_or_echo_stream(body, request_id, prompt),
             media_type="text/event-stream",
             headers={"X-Request-ID": request_id},
         )
+    try:
+        result = await forward_to_backend(body, request_id, stream=False)
+    except (httpx.HTTPError, BackendJSONError):
+        content = echo_response(prompt)
+        result = build_response(request_id, content, prompt)
     return JSONResponse(result, headers={"X-Request-ID": request_id})
 
 

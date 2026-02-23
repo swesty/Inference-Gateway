@@ -11,6 +11,10 @@ BACKEND_URL = os.environ.get("BACKEND_URL", "")
 MODEL_NAME = "echo"
 
 
+class BackendJSONError(Exception):
+    """Raised when the backend returns a non-JSON response."""
+
+
 # ---------------------------------------------------------------------------
 # Request helpers
 # ---------------------------------------------------------------------------
@@ -121,7 +125,10 @@ async def forward_to_backend(
         async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(url, json=body, headers=headers)
             resp.raise_for_status()
-            return resp.json()
+            try:
+                return resp.json()
+            except ValueError as err:
+                raise BackendJSONError() from err
     else:
         return _stream_from_backend(url, body, headers)
 
@@ -136,5 +143,5 @@ async def _stream_from_backend(
         ) as resp:
             resp.raise_for_status()
             async for line in resp.aiter_lines():
-                if line:
+                if line and line.startswith("data:"):
                     yield line + "\n\n"

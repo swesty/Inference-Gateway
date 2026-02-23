@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from gateway import (
     BACKEND_URL,
+    BackendJSONError,
     build_response,
     echo_response,
     echo_stream,
@@ -39,6 +40,38 @@ async def backend_connect_error(_request: Request, exc: httpx.ConnectError):
     return JSONResponse(
         status_code=502,
         content={"error": f"Backend connection failed: {exc}"},
+    )
+
+
+@app.exception_handler(httpx.TimeoutException)
+async def backend_timeout(_request: Request, exc: httpx.TimeoutException):
+    return JSONResponse(
+        status_code=504,
+        content={"error": "Backend request timed out"},
+    )
+
+
+@app.exception_handler(httpx.ReadError)
+async def backend_read_error(_request: Request, exc: httpx.ReadError):
+    return JSONResponse(
+        status_code=502,
+        content={"error": f"Backend read failed: {exc}"},
+    )
+
+
+@app.exception_handler(httpx.WriteError)
+async def backend_write_error(_request: Request, exc: httpx.WriteError):
+    return JSONResponse(
+        status_code=502,
+        content={"error": f"Backend write failed: {exc}"},
+    )
+
+
+@app.exception_handler(BackendJSONError)
+async def backend_json_error(_request: Request, exc: BackendJSONError):
+    return JSONResponse(
+        status_code=502,
+        content={"error": "Backend returned non-JSON response"},
     )
 
 

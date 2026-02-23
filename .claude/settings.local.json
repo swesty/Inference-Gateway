@@ -5,7 +5,12 @@
       "Bash(python3:*)",
       "Bash(chmod +x:*)",
       "Bash(uv run:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(python:*)",
+      "Bash(PORT=9124 python:*)",
+      "Bash(uv pip:*)",
+      "Bash(git:*)",
+      "Bash(wc:*)"
     ]
   }
 }

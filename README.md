@@ -72,6 +72,35 @@ curl -N http://localhost:8080/v1/chat/completions \
   -d '{"messages":[{"role":"user","content":"Hi"}],"stream":true}'
 ```
 
+## Request Validation
+
+Incoming requests to `/v1/chat/completions` are validated before processing. Invalid requests receive a `400` response with a JSON error body.
+
+| Field         | Rules                                                        | Error key             |
+|---------------|--------------------------------------------------------------|-----------------------|
+| `messages`    | Required. Array of objects, each with `role` (str) and `content` (str). | `invalid_messages`    |
+| `stream`      | Optional. Must be a boolean.                                 | `invalid_stream`      |
+| `max_tokens`  | Optional. Integer in `[1, 128000]`.                          | `invalid_max_tokens`  |
+| `model`       | Optional. Must be a string. Defaults to `"echo"`.            | `invalid_model`       |
+| `temperature` | Optional. Number in `[0.0, 2.0]`.                            | `invalid_temperature` |
+| `stop`        | Optional. String or array of strings.                        | `invalid_stop`        |
+
+Accepted requests are normalized: unrecognized fields are stripped, and `model` and `stream` receive defaults if omitted.
+
+## Error Handling
+
+When `BACKEND_URL` is configured, the gateway handles backend failures gracefully:
+
+| Scenario                  | HTTP Status | Behavior                                      |
+|---------------------------|-------------|-----------------------------------------------|
+| Backend HTTP error        | 502         | Returns `{"error": "Backend error: <status>"}` |
+| Connection failure        | 502         | Returns `{"error": "Backend connection failed: ..."}` |
+| Read/write error          | 502         | Returns `{"error": "Backend read/write failed: ..."}` |
+| Backend timeout           | 504         | Returns `{"error": "Backend request timed out"}` |
+| Non-JSON backend response | 502         | Returns `{"error": "Backend returned non-JSON response"}` |
+
+For both streaming and non-streaming requests, if the backend is unreachable or returns an error, the gateway falls back to echo mode automatically.
+
 ## Request ID Tracking
 
 The gateway reads `X-Request-ID` or `Request-Id` from incoming headers. If neither is present, a UUID is generated. The request ID appears in both the response body (`id` field) and the `X-Request-ID` response header.

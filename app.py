@@ -15,7 +15,9 @@ from gateway import (
     echo_stream,
     extract_prompt,
     forward_to_backend,
+    normalize_request_body,
     resolve_request_id,
+    validate_request_body,
 )
 
 app = FastAPI(title="Inference Gateway")
@@ -117,9 +119,13 @@ async def list_models():
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     body = await request.json()
+    error = validate_request_body(body)
+    if error:
+        return JSONResponse(error, status_code=400)
+    body = normalize_request_body(body)
     headers = {k.lower(): v for k, v in request.headers.items()}
     request_id = resolve_request_id(headers)
-    stream = body.get("stream", False)
+    stream = body["stream"]
 
     # Echo mode (no BACKEND_URL configured)
     if not BACKEND_URL:

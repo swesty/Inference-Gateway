@@ -135,6 +135,81 @@ def main():
         assert_contains("has Echo:", "Echo: Hi", body)
         assert_contains("has DONE", "[DONE]", body)
 
+        # --- Validation tests ---
+
+        # Test 7: Missing messages
+        print("Test 7: Missing messages")
+        status, _, body = post_json("/v1/chat/completions", {})
+        assert_eq("status 400", 400, status)
+        assert_eq("error", "invalid_messages", json.loads(body)["error"])
+
+        # Test 8: messages not a list
+        print("Test 8: messages not a list")
+        status, _, body = post_json(
+            "/v1/chat/completions", {"messages": "not a list"}
+        )
+        assert_eq("status 400", 400, status)
+        assert_eq("error", "invalid_messages", json.loads(body)["error"])
+
+        # Test 9: Message missing role/content
+        print("Test 9: Message missing role/content")
+        status, _, body = post_json(
+            "/v1/chat/completions", {"messages": [{"role": "user"}]}
+        )
+        assert_eq("status 400", 400, status)
+        assert_eq("error", "invalid_messages", json.loads(body)["error"])
+
+        # Test 10: stream not bool
+        print("Test 10: stream not bool")
+        status, _, body = post_json(
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": "hi"}], "stream": "yes"},
+        )
+        assert_eq("status 400", 400, status)
+        assert_eq("error", "invalid_stream", json.loads(body)["error"])
+
+        # Test 11: max_tokens out of range
+        print("Test 11: max_tokens out of range")
+        status, _, body = post_json(
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": "hi"}], "max_tokens": 0},
+        )
+        assert_eq("status 400", 400, status)
+        assert_eq("error", "invalid_max_tokens", json.loads(body)["error"])
+
+        # Test 12: temperature out of range
+        print("Test 12: temperature out of range")
+        status, _, body = post_json(
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": "hi"}], "temperature": 3.0},
+        )
+        assert_eq("status 400", 400, status)
+        assert_eq("error", "invalid_temperature", json.loads(body)["error"])
+
+        # Test 13: stop wrong type
+        print("Test 13: stop wrong type")
+        status, _, body = post_json(
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": "hi"}], "stop": 42},
+        )
+        assert_eq("status 400", 400, status)
+        assert_eq("error", "invalid_stop", json.loads(body)["error"])
+
+        # Test 14: Normalization strips unknown fields and applies defaults
+        print("Test 14: Normalization")
+        status, _, body = post_json(
+            "/v1/chat/completions",
+            {
+                "messages": [{"role": "user", "content": "hi"}],
+                "unknown_field": True,
+                "temperature": 0.5,
+            },
+        )
+        assert_eq("status 200", 200, status)
+        resp = json.loads(body)
+        assert_eq("model defaulted", "echo", resp["model"])
+        assert_eq("echo content", "Echo: hi", resp["choices"][0]["message"]["content"])
+
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=5)

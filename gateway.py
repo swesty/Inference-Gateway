@@ -3,6 +3,7 @@
 import os
 import time
 import uuid
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import httpx
@@ -21,6 +22,7 @@ ALLOWED_FIELDS = {"messages", "stream", "max_tokens", "model", "temperature", "s
 # ---------------------------------------------------------------------------
 # Request validation & normalization
 # ---------------------------------------------------------------------------
+
 
 def validate_request_body(body: dict) -> dict | None:
     """Return an error dict if *body* is invalid, or ``None`` if it's OK."""
@@ -53,7 +55,11 @@ def validate_request_body(body: dict) -> dict | None:
     # temperature — optional, int|float in [0.0, 2.0]
     if "temperature" in body:
         t = body["temperature"]
-        if not isinstance(t, (int, float)) or isinstance(t, bool) or not (0.0 <= t <= 2.0):
+        if (
+            not isinstance(t, (int, float))
+            or isinstance(t, bool)
+            or not (0.0 <= t <= 2.0)
+        ):
             return {"error": "invalid_temperature"}
 
     # stop — optional, str or list[str]
@@ -81,6 +87,7 @@ def normalize_request_body(body: dict) -> dict:
 # Request helpers
 # ---------------------------------------------------------------------------
 
+
 def resolve_request_id(headers: dict[str, str]) -> str:
     """Return an existing request ID from headers or generate a new UUID."""
     for key in ("x-request-id", "request-id"):
@@ -107,6 +114,7 @@ def count_tokens(text: str) -> int:
 # ---------------------------------------------------------------------------
 # Response builders
 # ---------------------------------------------------------------------------
+
 
 def build_response(request_id: str, content: str, prompt: str) -> dict[str, Any]:
     """Build a full OpenAI-compatible chat completion response."""
@@ -160,6 +168,7 @@ def build_sse_chunk(
 # Echo mode
 # ---------------------------------------------------------------------------
 
+
 def echo_response(prompt: str) -> str:
     """Return the echo reply for a prompt."""
     return f"Echo: {prompt}"
@@ -176,9 +185,10 @@ async def echo_stream(prompt: str, request_id: str):
 # Backend forwarding
 # ---------------------------------------------------------------------------
 
+
 async def forward_to_backend(
     body: dict[str, Any], request_id: str, stream: bool
-):
+) -> dict[str, Any] | AsyncGenerator[str, None]:
     """Forward a request to BACKEND_URL and return dict or async generator."""
     url = f"{BACKEND_URL}/v1/chat/completions"
     headers = {"Content-Type": "application/json", "X-Request-ID": request_id}
@@ -191,19 +201,28 @@ async def forward_to_backend(
                 return resp.json()
             except ValueError as err:
                 raise BackendJSONError() from err
-    else:
-        return _stream_from_backend(url, body, headers)
+
+    # Eager connect — errors propagate before StreamingResponse starts
+    client = httpx.AsyncClient(timeout=120)
+    request = client.build_request("POST", url, json=body, headers=headers)
+    resp = await client.send(request, stream=True)
+    try:
+        resp.raise_for_status()
+    except Exception:
+        await resp.aclose()
+        await client.aclose()
+        raise
+    return _stream_lines(client, resp)
 
 
-async def _stream_from_backend(
-    url: str, body: dict[str, Any], headers: dict[str, str]
-):
-    """Async generator that streams SSE lines from the backend."""
-    async with httpx.AsyncClient(timeout=120) as client:
-        async with client.stream(
-            "POST", url, json=body, headers=headers
-        ) as resp:
-            resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if line and line.startswith("data:"):
-                    yield line + "\n\n"
+async def _stream_lines(
+    client: httpx.AsyncClient, resp: httpx.Response
+) -> AsyncGenerator[str, None]:
+    """Yield SSE data lines, then close the connection."""
+    try:
+        async for line in resp.aiter_lines():
+            if line and line.startswith("data:"):
+                yield line + "\n\n"
+    finally:
+        await resp.aclose()
+        await client.aclose()

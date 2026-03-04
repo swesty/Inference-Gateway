@@ -20,6 +20,8 @@ from gateway import (
     validate_request_body,
 )
 
+_BACKEND_ERROR = {"error": "backend_error"}
+
 app = FastAPI(title="Inference Gateway")
 
 PORT = int(os.environ.get("PORT", "8080"))
@@ -29,72 +31,41 @@ PORT = int(os.environ.get("PORT", "8080"))
 # Exception handlers
 # ---------------------------------------------------------------------------
 
+
 @app.exception_handler(httpx.HTTPStatusError)
 async def backend_http_error(_request: Request, exc: httpx.HTTPStatusError):
-    return JSONResponse(
-        status_code=502,
-        content={"error": f"Backend error: {exc.response.status_code}"},
-    )
+    return JSONResponse(status_code=502, content=_BACKEND_ERROR)
 
 
 @app.exception_handler(httpx.ConnectError)
 async def backend_connect_error(_request: Request, exc: httpx.ConnectError):
-    return JSONResponse(
-        status_code=502,
-        content={"error": f"Backend connection failed: {exc}"},
-    )
+    return JSONResponse(status_code=502, content={"error": "backend_unavailable"})
 
 
 @app.exception_handler(httpx.TimeoutException)
 async def backend_timeout(_request: Request, exc: httpx.TimeoutException):
-    return JSONResponse(
-        status_code=504,
-        content={"error": "Backend request timed out"},
-    )
+    return JSONResponse(status_code=504, content={"error": "gateway_timeout"})
 
 
 @app.exception_handler(httpx.ReadError)
 async def backend_read_error(_request: Request, exc: httpx.ReadError):
-    return JSONResponse(
-        status_code=502,
-        content={"error": f"Backend read failed: {exc}"},
-    )
+    return JSONResponse(status_code=502, content=_BACKEND_ERROR)
 
 
 @app.exception_handler(httpx.WriteError)
 async def backend_write_error(_request: Request, exc: httpx.WriteError):
-    return JSONResponse(
-        status_code=502,
-        content={"error": f"Backend write failed: {exc}"},
-    )
+    return JSONResponse(status_code=502, content=_BACKEND_ERROR)
 
 
 @app.exception_handler(BackendJSONError)
 async def backend_json_error(_request: Request, exc: BackendJSONError):
-    return JSONResponse(
-        status_code=502,
-        content={"error": "Backend returned non-JSON response"},
-    )
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-async def _backend_or_echo_stream(body, request_id, prompt):
-    """Try streaming from backend; fall back to echo on failure."""
-    try:
-        backend_gen = await forward_to_backend(body, request_id, stream=True)
-        async for chunk in backend_gen:
-            yield chunk
-    except (httpx.HTTPError, BackendJSONError):
-        async for chunk in echo_stream(prompt, request_id):
-            yield chunk
+    return JSONResponse(status_code=502, content=_BACKEND_ERROR)
 
 
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @app.get("/healthz")
 async def healthz():
@@ -140,19 +111,15 @@ async def chat_completions(request: Request):
         resp = build_response(request_id, content, prompt)
         return JSONResponse(resp, headers={"X-Request-ID": request_id})
 
-    # Backend forwarding mode (fall back to echo on failure)
-    prompt = extract_prompt(body)
+    # Backend forwarding mode
     if stream:
+        gen = await forward_to_backend(body, request_id, stream=True)
         return StreamingResponse(
-            _backend_or_echo_stream(body, request_id, prompt),
+            gen,
             media_type="text/event-stream",
             headers={"X-Request-ID": request_id},
         )
-    try:
-        result = await forward_to_backend(body, request_id, stream=False)
-    except (httpx.HTTPError, BackendJSONError):
-        content = echo_response(prompt)
-        result = build_response(request_id, content, prompt)
+    result = await forward_to_backend(body, request_id, stream=False)
     return JSONResponse(result, headers={"X-Request-ID": request_id})
 
 

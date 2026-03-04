@@ -11,3 +11,7 @@ wheels/
 
 # Claude Code
 .claude/
+CLAUDE.md
+
+# Reference materials
+reference/

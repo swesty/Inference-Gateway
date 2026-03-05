@@ -62,8 +62,6 @@ def main():
 
     # Start server
     env = {**os.environ, "PORT": str(PORT)}
-    # Remove BACKEND_URL to ensure echo mode
-    env.pop("BACKEND_URL", None)
     proc = subprocess.Popen(
         [sys.executable, "app.py"],
         env=env,
@@ -209,6 +207,26 @@ def main():
         resp = json.loads(body)
         assert_eq("model defaulted", "echo", resp["model"])
         assert_eq("echo content", "Echo: hi", resp["choices"][0]["message"]["content"])
+
+        # Test 15: Model routing — explicit model "echo" routes to echo backend
+        print("Test 15: Model routing — explicit echo")
+        status, _, body = post_json(
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": "route me"}], "model": "echo"},
+        )
+        assert_eq("status 200", 200, status)
+        resp = json.loads(body)
+        assert_eq("routed to echo", "Echo: route me", resp["choices"][0]["message"]["content"])
+
+        # Test 16: Unknown model falls back to default backend
+        print("Test 16: Unknown model falls back to default")
+        status, _, body = post_json(
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": "fallback"}], "model": "nonexistent-model"},
+        )
+        assert_eq("status 200", 200, status)
+        resp = json.loads(body)
+        assert_eq("fell back to echo", "Echo: fallback", resp["choices"][0]["message"]["content"])
 
     finally:
         proc.send_signal(signal.SIGTERM)

@@ -1,14 +1,10 @@
 """Core logic for the inference gateway — no framework imports."""
 
-import os
 import time
 import uuid
-from collections.abc import AsyncGenerator
 from typing import Any
 
-import httpx
 
-BACKEND_URL = os.environ.get("BACKEND_URL", "")
 MODEL_NAME = "echo"
 
 
@@ -78,7 +74,6 @@ def validate_request_body(body: dict) -> dict | None:
 def normalize_request_body(body: dict) -> dict:
     """Return a new dict with only recognised fields and sensible defaults."""
     out: dict = {k: v for k, v in body.items() if k in ALLOWED_FIELDS}
-    out.setdefault("model", MODEL_NAME)
     out.setdefault("stream", False)
     return out
 
@@ -164,65 +159,3 @@ def build_sse_chunk(
     return f"data: {json.dumps(chunk)}\n\n"
 
 
-# ---------------------------------------------------------------------------
-# Echo mode
-# ---------------------------------------------------------------------------
-
-
-def echo_response(prompt: str) -> str:
-    """Return the echo reply for a prompt."""
-    return f"Echo: {prompt}"
-
-
-async def echo_stream(prompt: str, request_id: str):
-    """Async generator: yield one content chunk, one stop chunk, then [DONE]."""
-    yield build_sse_chunk(request_id, echo_response(prompt), None)
-    yield build_sse_chunk(request_id, None, "stop")
-    yield "data: [DONE]\n\n"
-
-
-# ---------------------------------------------------------------------------
-# Backend forwarding
-# ---------------------------------------------------------------------------
-
-
-async def forward_to_backend(
-    body: dict[str, Any], request_id: str, stream: bool
-) -> dict[str, Any] | AsyncGenerator[str, None]:
-    """Forward a request to BACKEND_URL and return dict or async generator."""
-    url = f"{BACKEND_URL}/v1/chat/completions"
-    headers = {"Content-Type": "application/json", "X-Request-ID": request_id}
-
-    if not stream:
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(url, json=body, headers=headers)
-            resp.raise_for_status()
-            try:
-                return resp.json()
-            except ValueError as err:
-                raise BackendJSONError() from err
-
-    # Eager connect — errors propagate before StreamingResponse starts
-    client = httpx.AsyncClient(timeout=120)
-    request = client.build_request("POST", url, json=body, headers=headers)
-    resp = await client.send(request, stream=True)
-    try:
-        resp.raise_for_status()
-    except Exception:
-        await resp.aclose()
-        await client.aclose()
-        raise
-    return _stream_lines(client, resp)
-
-
-async def _stream_lines(
-    client: httpx.AsyncClient, resp: httpx.Response
-) -> AsyncGenerator[str, None]:
-    """Yield SSE data lines, then close the connection."""
-    try:
-        async for line in resp.aiter_lines():
-            if line and line.startswith("data:"):
-                yield line + "\n\n"
-    finally:
-        await resp.aclose()
-        await client.aclose()

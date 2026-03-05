@@ -7,14 +7,9 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from config import BackendRegistry
 from gateway import (
-    BACKEND_URL,
     BackendJSONError,
-    build_response,
-    echo_response,
-    echo_stream,
-    extract_prompt,
-    forward_to_backend,
     normalize_request_body,
     resolve_request_id,
     validate_request_body,
@@ -23,6 +18,7 @@ from gateway import (
 _BACKEND_ERROR = {"error": "backend_error"}
 
 app = FastAPI(title="Inference Gateway")
+registry = BackendRegistry.from_config()
 
 PORT = int(os.environ.get("PORT", "8080"))
 
@@ -78,11 +74,12 @@ async def list_models():
         "object": "list",
         "data": [
             {
-                "id": "echo",
+                "id": b.name,
                 "object": "model",
                 "created": 0,
                 "owned_by": "inference-gateway",
             }
+            for b in registry.list_backends()
         ],
     }
 
@@ -98,28 +95,17 @@ async def chat_completions(request: Request):
     request_id = resolve_request_id(headers)
     stream = body["stream"]
 
-    # Echo mode (no BACKEND_URL configured)
-    if not BACKEND_URL:
-        prompt = extract_prompt(body)
-        if stream:
-            return StreamingResponse(
-                echo_stream(prompt, request_id),
-                media_type="text/event-stream",
-                headers={"X-Request-ID": request_id},
-            )
-        content = echo_response(prompt)
-        resp = build_response(request_id, content, prompt)
-        return JSONResponse(resp, headers={"X-Request-ID": request_id})
+    model = body.get("model")
+    known = {b.name for b in registry.list_backends()}
+    backend = registry.get(model) if model and model in known else registry.get_default()
 
-    # Backend forwarding mode
+    result = await backend.generate(body, request_id, stream)
     if stream:
-        gen = await forward_to_backend(body, request_id, stream=True)
         return StreamingResponse(
-            gen,
+            result,
             media_type="text/event-stream",
             headers={"X-Request-ID": request_id},
         )
-    result = await forward_to_backend(body, request_id, stream=False)
     return JSONResponse(result, headers={"X-Request-ID": request_id})
 
 

@@ -84,6 +84,21 @@ async def list_models():
     }
 
 
+@app.get("/v1/backends")
+async def get_backends():
+    default = registry.get_default()
+    return {
+        "backends": [
+            {
+                "name": b.name,
+                "type": b.type,
+                "default": b is default,
+            }
+            for b in registry.list_backends()
+        ],
+    }
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     body = await request.json()
@@ -97,7 +112,9 @@ async def chat_completions(request: Request):
 
     model = body.get("model")
     known = {b.name for b in registry.list_backends()}
-    backend = registry.get(model) if model and model in known else registry.get_default()
+    backend = (
+        registry.get(model) if model and model in known else registry.get_default()
+    )
 
     result = await backend.generate(body, request_id, stream)
     if stream:

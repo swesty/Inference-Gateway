@@ -25,6 +25,7 @@ Backends are defined in `config.yaml`. If no config file is found, the gateway r
 
 ```yaml
 default_backend: echo
+# fallback_backend: echo
 backends:
   echo:
     type: echo
@@ -34,6 +35,7 @@ backends:
 ```
 
 - **`default_backend`** — name of the backend used when the request has no `model` or an unknown model.
+- **`fallback_backend`** *(optional)* — name of a backend to try when the primary backend fails (connection error, timeout, HTTP error). Must reference a backend defined in `backends`. Omit or comment out to disable fallback.
 - **`backends`** — map of named backends. Each entry needs a `type` (`echo` for echo mode, anything else for remote) and remote backends need a `url`.
 
 ## Model Routing
@@ -68,6 +70,15 @@ List available models.
 
 ```bash
 curl http://localhost:8080/v1/models
+```
+
+### `GET /v1/backends`
+
+List registered backends with their name, type, and whether they are the default.
+
+```bash
+curl http://localhost:8080/v1/backends
+# {"backends":[{"name":"echo","type":"echo","default":true}]}
 ```
 
 ### `POST /v1/chat/completions`
@@ -115,6 +126,15 @@ When a remote backend is configured, the gateway handles failures gracefully:
 | Read/write error          | 502         | `{"error": "backend_error"}`           |
 | Backend timeout           | 504         | `{"error": "gateway_timeout"}`         |
 | Non-JSON backend response | 502         | `{"error": "backend_error"}`           |
+
+### Fallback
+
+When `fallback_backend` is configured and the primary backend fails, the gateway automatically retries the request against the fallback backend. On a successful fallback:
+
+- The `X-Fallback: true` response header is set.
+- For non-streaming responses, the body includes `"fallback": true`.
+
+If no fallback is configured, or the fallback is the same backend that failed, the original error is returned.
 
 ## Request ID Tracking
 

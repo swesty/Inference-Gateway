@@ -9,8 +9,8 @@ from .backend import Backend
 
 
 class RemoteBackend(Backend):
-    def __init__(self, name: str, url: str) -> None:
-        super().__init__(name)
+    def __init__(self, name: str, url: str, type: str = "remote") -> None:
+        super().__init__(name, type=type)
         self.url = url
 
     async def generate(

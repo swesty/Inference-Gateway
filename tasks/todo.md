@@ -153,41 +153,65 @@ async def list_models():
 
 **Done when:** New tests verify the endpoint shape and default flag.
 
+## Kept this simpler for the time being since I'm not sure we'll need a whole `info()` method. If so we'll add it later
+
 ---
 
 ## Step 6 — Configurable Fallback Backend (Issue #11)
 
-**Goal:** Opt-in fallback. Primary fails → retry with fallback backend → response includes `"fallback": true`.
+**Goal:** Opt-in fallback. Primary fails → retry with fallback backend → signal fallback in both response body and header.
 
 **Config addition:**
 ```yaml
 fallback_backend: echo
 ```
 
+**Fallback signaling — two layers:**
+
+1. **`X-Fallback: true` response header** — always set when fallback is used (streaming + non-streaming, any backend type). This is the universal signal.
+2. **`"fallback": true` in response body** — set via dict mutation after `generate()` returns. Works for non-streaming only (both echo and remote return dicts). For streaming, the header is the only signal.
+
 **Logic in `app.py` handler:**
 ```python
 try:
     result = await backend.generate(...)
+    used_fallback = False
 except (httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException,
         httpx.ReadError, httpx.WriteError, BackendJSONError):
     fallback = registry.get_fallback()
     if fallback is None:
         raise  # existing exception handlers catch it → 502
     result = await fallback.generate(...)
-    # mark response with "fallback": true
+    used_fallback = True
+
+headers = {"X-Request-ID": request_id}
+if used_fallback:
+    headers["X-Fallback"] = "true"
+    if isinstance(result, dict):
+        result["fallback"] = True
+
+if stream:
+    return StreamingResponse(result, media_type="text/event-stream", headers=headers)
+return JSONResponse(result, headers=headers)
 ```
 
-**Changes to `gateway.py`:** `build_response()` gains optional `fallback=False` param.
+**Changes to `config.py`:**
+- `from_config()` reads `fallback_backend` from YAML
+- `get_fallback()` returns the fallback backend instance (currently returns `None`)
+
+**No changes to `gateway.py` or backend classes.**
 
 **Key rules:**
 - No fallback configured → errors pass through as today (502)
 - Only one retry — no cascading
-- Client sees `"fallback": true` so it knows
+- Non-streaming: client sees `"fallback": true` in body + `X-Fallback: true` header
+- Streaming: client sees `X-Fallback: true` header only
 
-**Done when:** Three test scenarios pass:
-1. Primary down + fallback configured → 200 with `"fallback": true`
-2. Primary down + no fallback → 502
-3. Primary healthy → normal response, no fallback field
+**Done when:** Four test scenarios pass:
+1. Primary down + fallback configured (non-streaming) → 200 with `"fallback": true` in body + `X-Fallback` header
+2. Primary down + fallback configured (streaming) → 200 with `X-Fallback` header
+3. Primary down + no fallback → 502
+4. Primary healthy → normal response, no fallback signals
 
 ---
 

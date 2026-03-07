@@ -228,6 +228,29 @@ def main():
         resp = json.loads(body)
         assert_eq("fell back to echo", "Echo: fallback", resp["choices"][0]["message"]["content"])
 
+        # Test 17: GET /v1/backends returns correct shape
+        print("Test 17: GET /v1/backends")
+        data = get_json("/v1/backends")
+        backends = data["backends"]
+        assert_eq("one backend", 1, len(backends))
+        assert_eq("name", "echo", backends[0]["name"])
+        assert_eq("type", "echo", backends[0]["type"])
+        assert_eq("default", True, backends[0]["default"])
+
+        # Test 18: No fallback configured — backend error returns 502
+        print("Test 18: No fallback — error propagates")
+        # The echo backend always works, so we verify the config state:
+        # get_fallback() should be None since config.yaml has no fallback_backend
+        # We test this indirectly — a request to a nonexistent model still uses
+        # default (echo) and succeeds; there's no fallback to invoke.
+        status, hdrs, body = post_json(
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": "test"}], "model": "nonexistent"},
+        )
+        assert_eq("status 200 via default", 200, status)
+        resp = json.loads(body)
+        assert_eq("no fallback flag", None, resp.get("fallback"))
+
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=5)

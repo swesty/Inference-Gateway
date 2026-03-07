@@ -9,10 +9,11 @@ from backends import Backend, EchoBackend, RemoteBackend
 
 class BackendRegistry:
     def __init__(
-        self, backends: dict[str, Backend], default_name: str
+        self, backends: dict[str, Backend], default_name: str, fallback_name: str | None = None
     ) -> None:
         self._backends = backends
         self._default_name = default_name
+        self._fallback_name = fallback_name
 
     def get(self, name: str) -> Backend:
         """Return a backend by name or raise KeyError."""
@@ -23,7 +24,9 @@ class BackendRegistry:
         return self._backends[self._default_name]
 
     def get_fallback(self) -> Backend | None:
-        """Return the fallback backend (None until Step 6 adds config)."""
+        """Return the fallback backend, or None if not configured."""
+        if self._fallback_name:
+            return self._backends.get(self._fallback_name)
         return None
 
     def list_backends(self) -> list[Backend]:
@@ -60,11 +63,17 @@ class BackendRegistry:
                     raise ValueError(
                         f"Backend '{name}' (type '{backend_type}') requires a 'url'"
                     )
-                backends[name] = RemoteBackend(name, url)
+                backends[name] = RemoteBackend(name, url, type=backend_type)
 
         if default_name not in backends:
             raise ValueError(
                 f"default_backend '{default_name}' not defined in backends"
             )
 
-        return cls(backends, default_name)
+        fallback_name = raw.get("fallback_backend")
+        if fallback_name and fallback_name not in backends:
+            raise ValueError(
+                f"fallback_backend '{fallback_name}' not defined in backends"
+            )
+
+        return cls(backends, default_name, fallback_name)

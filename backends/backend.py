@@ -4,8 +4,9 @@ from typing import Any
 
 
 class Backend(ABC):
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, type: str) -> None:
         self.name = name
+        self.type = type
 
     @abstractmethod
     async def generate(

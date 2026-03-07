@@ -9,7 +9,7 @@ from .backend import Backend
 
 class EchoBackend(Backend):
     def __init__(self, name: str = "echo") -> None:
-        super().__init__(name)
+        super().__init__(name, type="echo")
 
     async def generate(
         self, body: dict[str, Any], request_id: str, stream: bool = False

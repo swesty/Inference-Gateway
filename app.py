@@ -116,7 +116,23 @@ async def chat_completions(request: Request):
         registry.get(model) if model and model in known else registry.get_default()
     )
 
-    result = await backend.generate(body, request_id, stream)
+    try:
+        result = await backend.generate(body, request_id, stream)
+    except (httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException,
+            httpx.ReadError, httpx.WriteError, BackendJSONError):
+        fallback = registry.get_fallback()
+        if fallback is None or fallback is backend:
+            raise
+        result = await fallback.generate(body, request_id, stream)
+        if stream:
+            return StreamingResponse(
+                result,
+                media_type="text/event-stream",
+                headers={"X-Request-ID": request_id, "X-Fallback": "true"},
+            )
+        result["fallback"] = True
+        return JSONResponse(result, headers={"X-Request-ID": request_id, "X-Fallback": "true"})
+
     if stream:
         return StreamingResponse(
             result,

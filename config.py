@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from backends import Backend, EchoBackend, RemoteBackend
+from backends import Backend, EchoBackend, RemoteBackend, VllmBackend
 
 
 class BackendRegistry:
@@ -57,6 +57,13 @@ class BackendRegistry:
             backend_type = entry.get("type", name)
             if backend_type == "echo":
                 backends[name] = EchoBackend(name)
+            elif backend_type == "vllm":
+                url = entry.get("url")
+                if not url:
+                    raise ValueError(
+                        f"Backend '{name}' (type 'vllm') requires a 'url'"
+                    )
+                backends[name] = VllmBackend(name, url)
             else:
                 url = entry.get("url")
                 if not url:

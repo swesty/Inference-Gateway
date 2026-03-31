@@ -251,6 +251,22 @@ def main():
         resp = json.loads(body)
         assert_eq("no fallback flag", None, resp.get("fallback"))
 
+        # Test 19: VllmBackend created from config with type "vllm"
+        print("Test 19: VllmBackend config instantiation")
+        from backends import VllmBackend
+        from config import BackendRegistry
+        import tempfile, pathlib
+        vllm_cfg = "default_backend: vllm_test\nbackends:\n  vllm_test:\n    type: vllm\n    url: http://localhost:9999\n"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(vllm_cfg)
+            f.flush()
+            reg = BackendRegistry.from_config(f.name)
+        pathlib.Path(f.name).unlink()
+        b = reg.get("vllm_test")
+        assert_eq("is VllmBackend", True, isinstance(b, VllmBackend))
+        assert_eq("type is vllm", "vllm", b.type)
+        assert_eq("url set", "http://localhost:9999", b.url)
+
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=5)

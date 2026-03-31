@@ -11,4 +11,4 @@ backends:
   #   url: https://YOUR_MODAL_URL
   # modal_vllm:
   #   type: vllm
-  #   url: https://YOUR_MODAL_VLLM_URL
+  #   url: https://YOUR_VLLM_URL

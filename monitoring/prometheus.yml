@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "inference-gateway"
+    static_configs:
+      - targets: ["gateway:9101"]
+    metrics_path: /metrics
+
+  # Uncomment to scrape vLLM metrics directly
+  # - job_name: "vllm"
+  #   static_configs:
+  #     - targets: ["host.docker.internal:8081"]
+  #   metrics_path: /metrics

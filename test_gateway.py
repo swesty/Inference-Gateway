@@ -321,6 +321,18 @@ def main():
         resp = get_json("/healthz")
         assert_eq("healthz ok", "ok", resp["status"])
 
+        # Test 26: GET /metrics/summary returns JSON
+        print("Test 26: GET /metrics/summary")
+        resp = get_json("/metrics/summary")
+        assert_eq("has server_profile", True, "server_profile" in resp)
+        assert_eq("has techniques", True, "techniques" in resp)
+
+        # Test 27: requests_total increments after requests
+        print("Test 27: Metrics — requests_total increments")
+        # We've already made several requests above, so baseline should have counts
+        baseline = resp["techniques"].get("baseline", {})
+        assert_eq("baseline has requests", True, baseline.get("requests", 0) > 0)
+
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=5)

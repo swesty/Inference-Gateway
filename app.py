@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import time
 
 import httpx
 import uvicorn
@@ -17,6 +18,12 @@ from gateway import (
     normalize_request_body,
     resolve_request_id,
     validate_request_body,
+)
+from metrics import (
+    get_metrics_summary,
+    record_request_metrics,
+    record_streaming_metrics,
+    start_metrics_server,
 )
 from technique import resolve_engine_backend, resolve_technique
 
@@ -105,6 +112,11 @@ async def list_models():
     }
 
 
+@app.get("/metrics/summary")
+async def metrics_summary():
+    return get_metrics_summary()
+
+
 @app.get("/v1/backends")
 async def get_backends():
     default = registry.get_default()
@@ -120,8 +132,26 @@ async def get_backends():
     }
 
 
+async def _instrumented_stream(generator, technique: str, start_time: float):
+    """Wrap a streaming generator to record TTFT and inter-chunk timing."""
+    ttft = None
+    chunk_delays: list[float] = []
+    last_chunk_time = start_time
+    async for chunk in generator:
+        now = time.perf_counter()
+        if ttft is None:
+            ttft = now - start_time
+        else:
+            chunk_delays.append(now - last_chunk_time)
+        last_chunk_time = now
+        yield chunk
+    duration = time.perf_counter() - start_time
+    record_streaming_metrics(technique, duration, ttft=ttft, chunk_delays=chunk_delays)
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
+    start_time = time.perf_counter()
     body = await request.json()
     error = validate_request_body(body)
     if error:
@@ -153,21 +183,35 @@ async def chat_completions(request: Request):
         if fallback is None or fallback is backend:
             raise
         result = await fallback.generate(body, request_id, stream)
+        duration = time.perf_counter() - start_time
         if stream:
             return StreamingResponse(
-                result,
+                _instrumented_stream(result, technique, start_time),
                 media_type="text/event-stream",
                 headers={**resp_headers, "X-Fallback": "true"},
             )
+        usage = result.get("usage", {})
+        record_request_metrics(
+            technique, duration,
+            prompt_tokens=usage.get("prompt_tokens", 0),
+            completion_tokens=usage.get("completion_tokens", 0),
+        )
         result["fallback"] = True
         return JSONResponse(result, headers={**resp_headers, "X-Fallback": "true"})
 
     if stream:
         return StreamingResponse(
-            result,
+            _instrumented_stream(result, technique, start_time),
             media_type="text/event-stream",
             headers=resp_headers,
         )
+    duration = time.perf_counter() - start_time
+    usage = result.get("usage", {}) if isinstance(result, dict) else {}
+    record_request_metrics(
+        technique, duration,
+        prompt_tokens=usage.get("prompt_tokens", 0),
+        completion_tokens=usage.get("completion_tokens", 0),
+    )
     return JSONResponse(result, headers=resp_headers)
 
 
@@ -176,4 +220,5 @@ async def chat_completions(request: Request):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    start_metrics_server()
     uvicorn.run(app, host="0.0.0.0", port=PORT)

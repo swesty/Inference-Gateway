@@ -13,6 +13,16 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8780:8780"
+    volumes:
+      - ./monitoring/nginx-gateway-lb.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:latest
     ports:

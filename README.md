@@ -202,6 +202,21 @@ Experiment scripts:
 ./scripts/run_server_ab.sh baseline beam_search
 ```
 
+## Load Balancer
+
+An nginx reverse proxy distributes requests across gateway workers (round-robin on port 8780):
+
+```bash
+# Via Docker Compose (starts automatically)
+docker compose up -d
+curl http://localhost:8780/healthz
+
+# Standalone
+nginx -p /tmp -c "$(pwd)/monitoring/nginx-gateway-lb.conf"
+```
+
+Set `GATEWAY_USE_LOAD_BALANCER=true` and point clients to port 8780 instead of 8080. For multi-worker setups, add additional `server` lines in `monitoring/nginx-gateway-lb.conf`.
+
 ## Cloud Deployment
 
 See [docs/cloud-deployment.md](docs/cloud-deployment.md) for deploying with a remote GPU via SSH tunnel (Lambda Cloud / Anyscale).

@@ -27,10 +27,12 @@ from metrics import (
     start_metrics_server,
 )
 from technique import resolve_engine_backend, resolve_technique
+from tracing import setup_tracing
 
 _BACKEND_ERROR = {"error": "backend_error"}
 
 app = FastAPI(title="Inference Gateway")
+setup_tracing(app)
 registry = BackendRegistry.from_config()
 
 PORT = int(os.environ.get("PORT", "8080"))

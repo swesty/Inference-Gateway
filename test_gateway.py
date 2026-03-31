@@ -338,6 +338,12 @@ def main():
         from cost import compute_cost
         assert_eq("cost zero", 0.0, compute_cost(1.0))
 
+        # Test 29: Tracing — no errors when OTEL is unset
+        print("Test 29: Tracing — no errors when disabled")
+        from tracing import get_trace_id
+        trace_id = get_trace_id()
+        assert_eq("trace_id None when disabled", None, trace_id)
+
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=5)

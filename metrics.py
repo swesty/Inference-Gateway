@@ -63,6 +63,12 @@ REQUESTS_TOTAL = Counter(
     _LABELS,
 )
 
+ESTIMATED_GPU_COST = Counter(
+    "estimated_gpu_cost_usd_total",
+    "Estimated GPU cost in USD",
+    _LABELS,
+)
+
 GATEWAY_INFO = Info("llm_gateway", "Gateway instance metadata")
 GATEWAY_INFO.info({"server_profile": get_server_profile()})
 
@@ -77,12 +83,15 @@ def record_request_metrics(
     duration: float,
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
+    cost_usd: float = 0.0,
 ) -> None:
     """Record metrics for a completed (non-streaming) request."""
     profile = get_server_profile()
     labels = {"technique": technique, "server_profile": profile}
     REQUESTS_TOTAL.labels(**labels).inc()
     REQUEST_DURATION.labels(**labels).observe(duration)
+    if cost_usd > 0:
+        ESTIMATED_GPU_COST.labels(**labels).inc(cost_usd)
     if prompt_tokens:
         PROMPT_TOKENS.labels(**labels).inc(prompt_tokens)
     if completion_tokens:

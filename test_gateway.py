@@ -333,6 +333,11 @@ def main():
         baseline = resp["techniques"].get("baseline", {})
         assert_eq("baseline has requests", True, baseline.get("requests", 0) > 0)
 
+        # Test 28: Cost is 0.0 when GPU_HOURLY_COST_USD is unset
+        print("Test 28: Cost — zero when unset")
+        from cost import compute_cost
+        assert_eq("cost zero", 0.0, compute_cost(1.0))
+
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=5)

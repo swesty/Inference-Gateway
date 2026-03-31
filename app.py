@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from config import BackendRegistry
+from cost import compute_cost
 from gateway import (
     BackendJSONError,
     normalize_request_body,
@@ -195,6 +196,7 @@ async def chat_completions(request: Request):
             technique, duration,
             prompt_tokens=usage.get("prompt_tokens", 0),
             completion_tokens=usage.get("completion_tokens", 0),
+            cost_usd=compute_cost(duration),
         )
         result["fallback"] = True
         return JSONResponse(result, headers={**resp_headers, "X-Fallback": "true"})
@@ -211,6 +213,7 @@ async def chat_completions(request: Request):
         technique, duration,
         prompt_tokens=usage.get("prompt_tokens", 0),
         completion_tokens=usage.get("completion_tokens", 0),
+        cost_usd=compute_cost(duration),
     )
     return JSONResponse(result, headers=resp_headers)
 

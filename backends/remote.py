@@ -13,6 +13,25 @@ class RemoteBackend(Backend):
         super().__init__(name, type=type)
         self.url = url
 
+    async def health_check(self) -> dict[str, str]:
+        """Check backend connectivity via GET /health."""
+        if "YOUR_" in self.url:
+            return {"status": "error", "detail": "placeholder URL"}
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(f"{self.url}/health")
+                content_type = resp.headers.get("content-type", "")
+                if "text/html" in content_type:
+                    return {"status": "error", "detail": "HTML response (not an API)"}
+                resp.raise_for_status()
+                return {"status": "ok"}
+        except httpx.ConnectError:
+            return {"status": "error", "detail": "connection refused"}
+        except httpx.TimeoutException:
+            return {"status": "error", "detail": "timeout"}
+        except httpx.HTTPStatusError as exc:
+            return {"status": "error", "detail": f"HTTP {exc.response.status_code}"}
+
     async def generate(
         self, body: dict[str, Any], request_id: str, stream: bool = False
     ) -> str | AsyncGenerator[str, None]:

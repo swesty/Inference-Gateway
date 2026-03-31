@@ -13,3 +13,7 @@ class Backend(ABC):
         self, body: dict[str, Any], request_id: str, stream: bool = False
     ) -> str | AsyncGenerator[str, None]:
         raise NotImplementedError
+
+    async def health_check(self) -> dict[str, str]:
+        """Check backend health. Override for remote connectivity checks."""
+        return {"status": "ok"}

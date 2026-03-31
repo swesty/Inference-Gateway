@@ -309,6 +309,18 @@ def main():
         assert_eq("status 200", 200, status)
         assert_eq("header wins", "beam_search", hlower.get("x-technique"))
 
+        # Test 24: GET /health with echo-only → healthy
+        print("Test 24: GET /health — echo-only healthy")
+        resp = get_json("/health")
+        assert_eq("status healthy", "healthy", resp["status"])
+        assert_eq("one backend", 1, len(resp["backends"]))
+        assert_eq("echo ok", "ok", resp["backends"][0]["status"])
+
+        # Test 25: /healthz unchanged
+        print("Test 25: /healthz still works")
+        resp = get_json("/healthz")
+        assert_eq("healthz ok", "ok", resp["status"])
+
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=5)

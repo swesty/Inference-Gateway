@@ -73,6 +73,22 @@ async def healthz():
     return {"status": "ok"}
 
 
+@app.get("/health")
+async def health():
+    results = []
+    for b in registry.list_backends():
+        check = await b.health_check()
+        results.append({"name": b.name, "type": b.type, **check})
+    ok_count = sum(1 for r in results if r["status"] == "ok")
+    if ok_count == len(results):
+        status = "healthy"
+    elif ok_count > 0:
+        status = "degraded"
+    else:
+        status = "unhealthy"
+    return {"status": status, "backends": results}
+
+
 @app.get("/v1/models")
 async def list_models():
     return {

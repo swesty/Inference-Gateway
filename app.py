@@ -26,14 +26,16 @@ from metrics import (
     record_streaming_metrics,
     start_metrics_server,
 )
-from technique import resolve_engine_backend, resolve_technique
-from tracing import setup_tracing
+from request_logger import RequestLogger
+from technique import get_server_profile, resolve_engine_backend, resolve_technique
+from tracing import get_trace_id, setup_tracing
 
 _BACKEND_ERROR = {"error": "backend_error"}
 
 app = FastAPI(title="Inference Gateway")
 setup_tracing(app)
 registry = BackendRegistry.from_config()
+req_logger = RequestLogger()
 
 PORT = int(os.environ.get("PORT", "8080"))
 
@@ -135,8 +137,13 @@ async def get_backends():
     }
 
 
-async def _instrumented_stream(generator, technique: str, start_time: float):
+async def _instrumented_stream(
+    generator, technique: str, start_time: float,
+    request_id: str = "", backend_name: str = "",
+):
     """Wrap a streaming generator to record TTFT and inter-chunk timing."""
+    from technique import get_server_profile
+
     ttft = None
     chunk_delays: list[float] = []
     last_chunk_time = start_time
@@ -150,6 +157,19 @@ async def _instrumented_stream(generator, technique: str, start_time: float):
         yield chunk
     duration = time.perf_counter() - start_time
     record_streaming_metrics(technique, duration, ttft=ttft, chunk_delays=chunk_delays)
+    req_logger.log(
+        request_id=request_id,
+        technique=technique,
+        server_profile=get_server_profile(),
+        backend=backend_name,
+        duration_s=duration,
+        prompt_tokens=0,
+        completion_tokens=0,
+        cost_usd=compute_cost(duration),
+        trace_id=get_trace_id(),
+        stream=True,
+        status_code=200,
+    )
 
 
 @app.post("/v1/chat/completions")
@@ -189,33 +209,51 @@ async def chat_completions(request: Request):
         duration = time.perf_counter() - start_time
         if stream:
             return StreamingResponse(
-                _instrumented_stream(result, technique, start_time),
+                _instrumented_stream(result, technique, start_time,
+                                     request_id=request_id, backend_name=backend.name),
                 media_type="text/event-stream",
                 headers={**resp_headers, "X-Fallback": "true"},
             )
         usage = result.get("usage", {})
+        cost = compute_cost(duration)
         record_request_metrics(
             technique, duration,
             prompt_tokens=usage.get("prompt_tokens", 0),
             completion_tokens=usage.get("completion_tokens", 0),
-            cost_usd=compute_cost(duration),
+            cost_usd=cost,
+        )
+        req_logger.log(
+            request_id=request_id, technique=technique,
+            server_profile=get_server_profile(), backend=backend.name,
+            duration_s=duration, prompt_tokens=usage.get("prompt_tokens", 0),
+            completion_tokens=usage.get("completion_tokens", 0),
+            cost_usd=cost, trace_id=get_trace_id(), stream=False, status_code=200,
         )
         result["fallback"] = True
         return JSONResponse(result, headers={**resp_headers, "X-Fallback": "true"})
 
     if stream:
         return StreamingResponse(
-            _instrumented_stream(result, technique, start_time),
+            _instrumented_stream(result, technique, start_time,
+                                 request_id=request_id, backend_name=backend.name),
             media_type="text/event-stream",
             headers=resp_headers,
         )
     duration = time.perf_counter() - start_time
     usage = result.get("usage", {}) if isinstance(result, dict) else {}
+    cost = compute_cost(duration)
     record_request_metrics(
         technique, duration,
         prompt_tokens=usage.get("prompt_tokens", 0),
         completion_tokens=usage.get("completion_tokens", 0),
-        cost_usd=compute_cost(duration),
+        cost_usd=cost,
+    )
+    req_logger.log(
+        request_id=request_id, technique=technique,
+        server_profile=get_server_profile(), backend=backend.name,
+        duration_s=duration, prompt_tokens=usage.get("prompt_tokens", 0),
+        completion_tokens=usage.get("completion_tokens", 0),
+        cost_usd=cost, trace_id=get_trace_id(), stream=False, status_code=200,
     )
     return JSONResponse(result, headers=resp_headers)
 

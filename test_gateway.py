@@ -344,6 +344,21 @@ def main():
         trace_id = get_trace_id()
         assert_eq("trace_id None when disabled", None, trace_id)
 
+        # Test 30: JSONL request logging
+        print("Test 30: JSONL request logging")
+        import glob as globmod
+        log_files = sorted(globmod.glob("logs/gateway/gateway_metrics_*.jsonl"))
+        assert_eq("log file exists", True, len(log_files) > 0)
+        if log_files:
+            with open(log_files[-1]) as f:
+                lines = f.readlines()
+            assert_eq("has log entries", True, len(lines) > 0)
+            entry = json.loads(lines[-1])
+            for field in ("timestamp", "request_id", "technique", "server_profile",
+                          "backend", "duration_s", "prompt_tokens", "completion_tokens",
+                          "cost_usd", "trace_id", "stream", "status_code"):
+                assert_eq(f"has {field}", True, field in entry)
+
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=5)

@@ -19,5 +19,8 @@ reference/
 # Environment
 .env
 
+# Request logs
+logs/
+
 # Task tracking
 tasks/

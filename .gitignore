@@ -16,5 +16,8 @@ CLAUDE.md
 # Reference materials
 reference/
 
+# Environment
+.env
+
 # Task tracking
 tasks/

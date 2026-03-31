@@ -1,5 +1,9 @@
 """FastAPI application — routes and server entry point."""
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import os
 
 import httpx

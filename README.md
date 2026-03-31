@@ -1,6 +1,6 @@
 # Inference Gateway
 
-A minimal, OpenAI-compatible HTTP inference gateway. Routes `POST /v1/chat/completions` to named backends defined in `config.yaml`, with request-ID tracking and streaming support.
+A minimal, OpenAI-compatible HTTP inference gateway. Routes `POST /v1/chat/completions` to named backends defined in `config.yaml`, with request-ID tracking, streaming support, Prometheus metrics, and optional OpenTelemetry tracing.
 
 Built with FastAPI + uvicorn.
 
@@ -11,13 +11,29 @@ uv sync
 uv run python app.py
 ```
 
-The server starts on port 8080 by default.
+The server starts on port 8080 by default. See [Cloud Deployment Guide](docs/cloud-deployment.md) for GPU setup.
+
+### Docker
+
+```bash
+docker compose up -d
+# Gateway: http://localhost:8080
+# Prometheus: http://localhost:9090
+# Grafana: http://localhost:3000 (admin/admin)
+```
 
 ## Environment Variables
 
-| Variable | Default | Description       |
-|----------|---------|-------------------|
-| `PORT`   | `8080`  | Port to listen on |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `8080` | Gateway listen port |
+| `VLLM_TLS_VERIFY` | `true` | TLS verification for vLLM backends |
+| `VLLM_SERVER_PROFILE` | `default` | Server profile label for metrics |
+| `GPU_HOURLY_COST_USD` | `0.0` | GPU cost for per-request estimation |
+| `GATEWAY_METRICS_LOG_DIR` | `logs/gateway` | JSONL log directory (`-` to disable) |
+| `METRICS_PORT` | `9101` | Prometheus scrape port |
+
+See `.env.example` for the full list including engine routing and cloud deployment vars.
 
 ## Configuration
 
@@ -57,11 +73,28 @@ Forwards requests to an upstream OpenAI-compatible API at the configured `url`.
 
 ### `GET /healthz`
 
-Health check.
+Liveness probe.
 
 ```bash
 curl http://localhost:8080/healthz
 # {"status":"ok"}
+```
+
+### `GET /health`
+
+Readiness probe with backend connectivity checks.
+
+```bash
+curl http://localhost:8080/health
+# {"status":"healthy","backends":[{"name":"echo","type":"echo","status":"ok"}]}
+```
+
+### `GET /metrics/summary`
+
+JSON summary of Prometheus metrics.
+
+```bash
+curl http://localhost:8080/metrics/summary
 ```
 
 ### `GET /v1/models`
@@ -149,3 +182,26 @@ bash test_gateway.sh
 # Python stdlib tests
 uv run python test_gateway.py
 ```
+
+## Workloads and Experiments
+
+LangChain test workloads live in `workloads/` (separate project):
+
+```bash
+cd workloads && uv sync
+uv run python workload.py --technique baseline
+```
+
+Experiment scripts:
+
+```bash
+# Technique sweep
+./scripts/run_experiments.sh
+
+# A/B test
+./scripts/run_server_ab.sh baseline beam_search
+```
+
+## Cloud Deployment
+
+See [docs/cloud-deployment.md](docs/cloud-deployment.md) for deploying with a remote GPU via SSH tunnel (Lambda Cloud / Anyscale).

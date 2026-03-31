@@ -402,6 +402,11 @@ docker compose up -d
 
 ---
 
-## More Documentation
+## Documentation
 
-- [Cloud Deployment Guide](docs/cloud-deployment.md) — Lambda/Anyscale setup with SSH tunnel
+- [Architecture](docs/architecture.md) — System design, request lifecycle, module map, streaming protocol
+- [API Reference](docs/api-reference.md) — All endpoints with request/response formats and error codes
+- [Configuration](docs/configuration.md) — config.yaml options, all environment variables, backend types
+- [Observability](docs/observability.md) — Prometheus metrics, JSONL logging, OpenTelemetry tracing, cost tracking, Grafana dashboards
+- [Engine Routing & A/B Testing](docs/engine-routing.md) — Technique resolution, engine routing strategies, vLLM engine profiles, A/B testing guide
+- [Cloud Deployment](docs/cloud-deployment.md) — Lambda/Anyscale setup with SSH tunnel

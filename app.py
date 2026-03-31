@@ -14,6 +14,7 @@ from gateway import (
     resolve_request_id,
     validate_request_body,
 )
+from technique import resolve_engine_backend, resolve_technique
 
 _BACKEND_ERROR = {"error": "backend_error"}
 
@@ -108,13 +109,21 @@ async def chat_completions(request: Request):
     body = normalize_request_body(body)
     headers = {k.lower(): v for k, v in request.headers.items()}
     request_id = resolve_request_id(headers)
+    technique = resolve_technique(headers, body)
     stream = body["stream"]
 
-    model = body.get("model")
-    known = {b.name for b in registry.list_backends()}
-    backend = (
-        registry.get(model) if model and model in known else registry.get_default()
-    )
+    # Engine routing override (env-var driven), then normal registry lookup
+    engine_backend = resolve_engine_backend(technique, registry)
+    if engine_backend:
+        backend = engine_backend
+    else:
+        model = body.get("model")
+        known = {b.name for b in registry.list_backends()}
+        backend = (
+            registry.get(model) if model and model in known else registry.get_default()
+        )
+
+    resp_headers = {"X-Request-ID": request_id, "X-Technique": technique}
 
     try:
         result = await backend.generate(body, request_id, stream)
@@ -128,18 +137,18 @@ async def chat_completions(request: Request):
             return StreamingResponse(
                 result,
                 media_type="text/event-stream",
-                headers={"X-Request-ID": request_id, "X-Fallback": "true"},
+                headers={**resp_headers, "X-Fallback": "true"},
             )
         result["fallback"] = True
-        return JSONResponse(result, headers={"X-Request-ID": request_id, "X-Fallback": "true"})
+        return JSONResponse(result, headers={**resp_headers, "X-Fallback": "true"})
 
     if stream:
         return StreamingResponse(
             result,
             media_type="text/event-stream",
-            headers={"X-Request-ID": request_id},
+            headers=resp_headers,
         )
-    return JSONResponse(result, headers={"X-Request-ID": request_id})
+    return JSONResponse(result, headers=resp_headers)
 
 
 # ---------------------------------------------------------------------------

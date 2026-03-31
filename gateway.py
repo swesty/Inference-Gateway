@@ -12,7 +12,7 @@ class BackendJSONError(Exception):
     """Raised when the backend returns a non-JSON response."""
 
 
-ALLOWED_FIELDS = {"messages", "stream", "max_tokens", "model", "temperature", "stop"}
+ALLOWED_FIELDS = {"messages", "stream", "max_tokens", "model", "temperature", "stop", "metadata"}
 
 
 # ---------------------------------------------------------------------------

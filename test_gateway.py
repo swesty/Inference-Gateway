@@ -267,6 +267,48 @@ def main():
         assert_eq("type is vllm", "vllm", b.type)
         assert_eq("url set", "http://localhost:9999", b.url)
 
+        # Test 20: Technique resolution — default is "baseline"
+        print("Test 20: Technique resolution — default baseline")
+        status, hdrs, body_str = post_json(
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": "hi"}]},
+        )
+        hlower = {k.lower(): v for k, v in hdrs.items()}
+        assert_eq("status 200", 200, status)
+        assert_eq("technique baseline", "baseline", hlower.get("x-technique"))
+
+        # Test 21: Technique resolution — X-Technique header
+        print("Test 21: Technique resolution — X-Technique header")
+        status, hdrs, body_str = post_json(
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": "hi"}]},
+            headers={"X-Technique": "chunked_prefill"},
+        )
+        hlower = {k.lower(): v for k, v in hdrs.items()}
+        assert_eq("status 200", 200, status)
+        assert_eq("technique from header", "chunked_prefill", hlower.get("x-technique"))
+
+        # Test 22: Technique resolution — metadata.technique in body
+        print("Test 22: Technique resolution — body metadata")
+        status, hdrs, body_str = post_json(
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": "hi"}], "metadata": {"technique": "speculative"}},
+        )
+        hlower = {k.lower(): v for k, v in hdrs.items()}
+        assert_eq("status 200", 200, status)
+        assert_eq("technique from body", "speculative", hlower.get("x-technique"))
+
+        # Test 23: Technique resolution — header takes priority over body
+        print("Test 23: Technique resolution — header priority")
+        status, hdrs, body_str = post_json(
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": "hi"}], "metadata": {"technique": "speculative"}},
+            headers={"X-Technique": "beam_search"},
+        )
+        hlower = {k.lower(): v for k, v in hdrs.items()}
+        assert_eq("status 200", 200, status)
+        assert_eq("header wins", "beam_search", hlower.get("x-technique"))
+
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=5)

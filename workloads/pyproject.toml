@@ -1,0 +1,9 @@
+[project]
+name = "inference-gateway-workloads"
+version = "0.1.0"
+description = "LangChain test workloads for inference gateway"
+requires-python = ">=3.12.2"
+dependencies = [
+    "langchain>=0.3.0",
+    "langchain-openai>=0.3.0",
+]

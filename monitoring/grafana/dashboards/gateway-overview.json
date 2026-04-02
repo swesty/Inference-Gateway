@@ -5,6 +5,20 @@
   "graphTooltip": 1,
   "id": null,
   "links": [],
+  "templating": {
+    "list": [
+      {
+        "name": "server_profile",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(requests_total, server_profile)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
   "panels": [
     {
       "title": "Request Rate by Technique (req/s)",
@@ -12,8 +26,8 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "sum(rate(requests_total[1m])) by (technique)",
-          "legendFormat": "{{technique}}",
+          "expr": "sum(rate(requests_total{server_profile=~\"$server_profile\"}[1m])) by (technique, server_profile)",
+          "legendFormat": "{{server_profile}} / {{technique}}",
           "refId": "A"
         }
       ],
@@ -23,18 +37,18 @@
       }
     },
     {
-      "title": "Request Duration by Technique (p50)",
+      "title": "Request Duration by Technique (p50 / p95)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(request_duration_seconds_bucket[5m])) by (le, technique))",
-          "legendFormat": "{{technique}} p50",
+          "expr": "histogram_quantile(0.5, sum(rate(request_duration_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(request_duration_seconds_bucket[5m])) by (le, technique))",
-          "legendFormat": "{{technique}} p95",
+          "expr": "histogram_quantile(0.95, sum(rate(request_duration_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p95",
           "refId": "B"
         }
       ],
@@ -49,7 +63,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
       "targets": [
         {
-          "expr": "sum(requests_total)",
+          "expr": "sum(requests_total{server_profile=~\"$server_profile\"})",
           "refId": "A"
         }
       ]
@@ -60,7 +74,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
       "targets": [
         {
-          "expr": "sum(prompt_tokens_total)",
+          "expr": "sum(prompt_tokens_total{server_profile=~\"$server_profile\"})",
           "refId": "A"
         }
       ]
@@ -71,7 +85,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
       "targets": [
         {
-          "expr": "sum(completion_tokens_total)",
+          "expr": "sum(completion_tokens_total{server_profile=~\"$server_profile\"})",
           "refId": "A"
         }
       ]
@@ -82,7 +96,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
       "targets": [
         {
-          "expr": "sum(estimated_gpu_cost_usd_total)",
+          "expr": "sum(estimated_gpu_cost_usd_total{server_profile=~\"$server_profile\"})",
           "refId": "A"
         }
       ],
@@ -97,13 +111,13 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(time_to_first_token_seconds_bucket[5m])) by (le, technique))",
-          "legendFormat": "{{technique}} p50",
+          "expr": "histogram_quantile(0.5, sum(rate(time_to_first_token_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(time_to_first_token_seconds_bucket[5m])) by (le, technique))",
-          "legendFormat": "{{technique}} p95",
+          "expr": "histogram_quantile(0.95, sum(rate(time_to_first_token_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p95",
           "refId": "B"
         }
       ],
@@ -118,8 +132,8 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(completion_tokens_per_second_bucket[5m])) by (le, technique))",
-          "legendFormat": "{{technique}} p50 tok/s",
+          "expr": "histogram_quantile(0.5, sum(rate(completion_tokens_per_second_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p50 tok/s",
           "refId": "A"
         }
       ],
@@ -134,13 +148,13 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(stream_inter_chunk_delay_seconds_bucket[5m])) by (le, technique))",
-          "legendFormat": "{{technique}} p50",
+          "expr": "histogram_quantile(0.5, sum(rate(stream_inter_chunk_delay_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(stream_inter_chunk_delay_seconds_bucket[5m])) by (le, technique))",
-          "legendFormat": "{{technique}} p95",
+          "expr": "histogram_quantile(0.95, sum(rate(stream_inter_chunk_delay_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p95",
           "refId": "B"
         }
       ],
@@ -155,8 +169,8 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
       "targets": [
         {
-          "expr": "sum(requests_total) by (technique)",
-          "legendFormat": "{{technique}}",
+          "expr": "sum(requests_total{server_profile=~\"$server_profile\"}) by (technique, server_profile)",
+          "legendFormat": "{{server_profile}} / {{technique}}",
           "refId": "A"
         }
       ]
@@ -164,7 +178,6 @@
   ],
   "schemaVersion": 39,
   "tags": ["inference-gateway"],
-  "templating": { "list": [] },
   "time": { "from": "now-1h", "to": "now" },
   "title": "Inference Gateway Overview",
   "uid": "inference-gateway-overview"

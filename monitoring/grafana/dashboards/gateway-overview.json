@@ -21,7 +21,7 @@
   },
   "panels": [
     {
-      "title": "Request Rate by Technique (req/s)",
+      "title": "Request Rate (req/s)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
@@ -32,12 +32,15 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "reqps" },
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
         "overrides": []
       }
     },
     {
-      "title": "Request Duration by Technique (p50 / p95)",
+      "title": "Request Duration (p50 / p95 / p99)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
@@ -50,17 +53,78 @@
           "expr": "histogram_quantile(0.95, sum(rate(request_duration_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
           "legendFormat": "{{server_profile}} / {{technique}} p95",
           "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(request_duration_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p99",
+          "refId": "C"
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "s" },
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Error Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(requests_total{server_profile=~\"$server_profile\"}[1m])) by (technique, server_profile) - sum(rate(requests_total{server_profile=~\"$server_profile\"}[1m])) by (technique, server_profile)",
+          "legendFormat": "errors (placeholder)",
+          "refId": "A",
+          "hide": true
+        },
+        {
+          "expr": "sum(rate(requests_total{server_profile=~\"$server_profile\"}[5m])) by (technique, server_profile)",
+          "legendFormat": "{{server_profile}} / {{technique}} total",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "description": "Total request rate by technique. Error-specific counters require HTTP status label (future enhancement)."
+    },
+    {
+      "title": "Token Rate (tok/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(prompt_tokens_total{server_profile=~\"$server_profile\"}[5m])) by (server_profile)",
+          "legendFormat": "{{server_profile}} prompt tok/s",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(completion_tokens_total{server_profile=~\"$server_profile\"}[5m])) by (server_profile)",
+          "legendFormat": "{{server_profile}} completion tok/s",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "axisCenteredZero": false
+          }
+        },
         "overrides": []
       }
     },
     {
       "title": "Total Requests",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 16 },
       "targets": [
         {
           "expr": "sum(requests_total{server_profile=~\"$server_profile\"})",
@@ -71,7 +135,7 @@
     {
       "title": "Prompt Tokens",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 16 },
       "targets": [
         {
           "expr": "sum(prompt_tokens_total{server_profile=~\"$server_profile\"})",
@@ -82,7 +146,7 @@
     {
       "title": "Completion Tokens",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 16 },
       "targets": [
         {
           "expr": "sum(completion_tokens_total{server_profile=~\"$server_profile\"})",
@@ -91,9 +155,39 @@
       ]
     },
     {
-      "title": "Estimated GPU Cost (USD)",
+      "title": "Avg Tokens/sec",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum(rate(completion_tokens_total{server_profile=~\"$server_profile\"}[5m])) / sum(rate(requests_total{server_profile=~\"$server_profile\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "decimals": 1 },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Avg TTFT",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum(rate(time_to_first_token_seconds_sum{server_profile=~\"$server_profile\"}[5m])) / sum(rate(time_to_first_token_seconds_count{server_profile=~\"$server_profile\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "decimals": 0 },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Estimated GPU Cost",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 16 },
       "targets": [
         {
           "expr": "sum(estimated_gpu_cost_usd_total{server_profile=~\"$server_profile\"})",
@@ -101,14 +195,14 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "currencyUSD" },
+        "defaults": { "unit": "currencyUSD", "decimals": 4 },
         "overrides": []
       }
     },
     {
-      "title": "Time to First Token by Technique",
+      "title": "Time to First Token (p50 / p95)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
       "targets": [
         {
           "expr": "histogram_quantile(0.5, sum(rate(time_to_first_token_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
@@ -122,30 +216,65 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "s" },
+        "defaults": {
+          "unit": "ms",
+          "min": 0
+        },
         "overrides": []
       }
     },
     {
-      "title": "Tokens per Second by Technique",
+      "title": "Time per Output Token (p50 / p95)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(completion_tokens_per_second_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p50 tok/s",
+          "expr": "histogram_quantile(0.5, sum(rate(time_per_output_token_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p50",
           "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(time_per_output_token_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p95",
+          "refId": "B"
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "short" },
+        "defaults": {
+          "unit": "ms",
+          "min": 0
+        },
         "overrides": []
       }
     },
     {
-      "title": "Inter-Chunk Delay by Technique",
+      "title": "Completion Tokens/sec by Technique (p50 / p95)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(completion_tokens_per_second_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(completion_tokens_per_second_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
+          "legendFormat": "{{server_profile}} / {{technique}} p95",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Inter-Chunk Delay (p50 / p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
       "targets": [
         {
           "expr": "histogram_quantile(0.5, sum(rate(stream_inter_chunk_delay_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
@@ -159,14 +288,17 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "s" },
+        "defaults": {
+          "unit": "ms",
+          "min": 0
+        },
         "overrides": []
       }
     },
     {
       "title": "Requests by Technique",
       "type": "piechart",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
       "targets": [
         {
           "expr": "sum(requests_total{server_profile=~\"$server_profile\"}) by (technique, server_profile)",
@@ -174,6 +306,26 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "title": "Estimated GPU Cost Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "targets": [
+        {
+          "expr": "sum(rate(estimated_gpu_cost_usd_total{server_profile=~\"$server_profile\"}[5m])) by (server_profile) * 3600",
+          "legendFormat": "{{server_profile}} $/hr",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "min": 0,
+          "decimals": 2
+        },
+        "overrides": []
+      }
     }
   ],
   "schemaVersion": 39,

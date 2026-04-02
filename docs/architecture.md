@@ -2,6 +2,32 @@
 
 ## System Overview
 
+```mermaid
+flowchart LR
+    Client([Client / LangChain])
+    LB[nginx :8780<br/>Load Balancer]
+    GW[FastAPI Gateway :8080<br/>Validate → Route → Metrics]
+    Echo[EchoBackend<br/>Testing]
+    Remote[RemoteBackend<br/>llama.cpp / SGLang /<br/>Ollama / OpenAI]
+    VLLM[VllmBackend<br/>Beam Search + TLS]
+    GPU[(GPU<br/>vLLM :8000)]
+    Prom[Prometheus :9090]
+    Graf[Grafana :3000]
+    Logs[(JSONL Logs)]
+
+    Client -->|HTTP| LB
+    LB -->|round-robin| GW
+    Client -.->|direct| GW
+    GW --> Echo
+    GW --> Remote
+    GW --> VLLM
+    VLLM -->|SSH tunnel| GPU
+    Remote -->|HTTP| GPU
+    GW -.->|:9101/metrics| Prom
+    Prom --> Graf
+    GW -.-> Logs
+```
+
 ```
 Client Request
     ↓
@@ -15,6 +41,34 @@ Client Request
 ```
 
 The gateway is an OpenAI-compatible HTTP proxy. It validates requests, resolves technique labels, selects a backend, forwards the request, records metrics, logs the result, and returns the response.
+
+### Request Flow Detail
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant G as Gateway
+    participant T as Technique Resolver
+    participant B as Backend
+    participant M as Metrics + Logging
+
+    C->>G: POST /v1/chat/completions
+    G->>G: Validate & normalize body
+    G->>T: Resolve technique (header/body/default)
+    T-->>G: technique label
+    G->>G: Route: engine override → model match → default
+    G->>B: backend.generate(body, request_id, stream)
+    alt Non-streaming
+        B-->>G: JSON response
+        G->>M: Record metrics + JSONL log
+        G-->>C: JSONResponse
+    else Streaming
+        B-->>G: AsyncGenerator
+        G-->>C: StreamingResponse (SSE chunks)
+        Note over G,C: TTFT + inter-chunk timing measured
+        G->>M: Record metrics + JSONL log (after stream ends)
+    end
+```
 
 ## Module Map
 
@@ -60,23 +114,54 @@ Key insight: the handler returns *before* streaming finishes. `StreamingResponse
 
 ## Backend Architecture
 
+```mermaid
+classDiagram
+    class Backend {
+        <<abstract>>
+        +name: str
+        +type: str
+        +generate(body, request_id, stream)*
+        +health_check()
+        +close()
+    }
+    class EchoBackend {
+        +generate() → Echo response
+    }
+    class RemoteBackend {
+        +url: str
+        +_client: httpx.AsyncClient
+        +_prepare_body(body)
+        +_forward(body, request_id)
+        +_forward_stream(body, request_id)
+        +close()
+    }
+    class VllmBackend {
+        +_prepare_body() → inject beam_search
+    }
+    Backend <|-- EchoBackend
+    Backend <|-- RemoteBackend
+    RemoteBackend <|-- VllmBackend
+```
+
 ```
 Backend (ABC)
 ├── generate(body, request_id, stream) → dict | AsyncGenerator
-└── health_check() → {"status": "ok"|"error", ...}
+├── health_check() → {"status": "ok"|"error", ...}
+└── close() → clean up resources
 
 EchoBackend(Backend)
 └── Returns "Echo: <last user message>"
 
 RemoteBackend(Backend)
+├── Shared httpx.AsyncClient with connection pooling
+├── _prepare_body(body) → hook for subclasses
 ├── _forward(body, request_id) → dict (non-streaming)
 ├── _forward_stream(body, request_id) → AsyncGenerator (streaming)
 └── health_check() → GET {url}/health with 5s timeout
 
 VllmBackend(RemoteBackend)
 ├── _prepare_body(body) → inject beam_search params, strip "technique"
-├── tls_verify from VLLM_TLS_VERIFY env var
-└── Overrides _forward/_forward_stream to use prepared body + verify flag
+└── Passes TLS verify flag from VLLM_TLS_VERIFY env var
 ```
 
 Adding a new backend type requires:

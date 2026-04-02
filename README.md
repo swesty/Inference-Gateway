@@ -371,6 +371,39 @@ backends:
 
 Backend types: `echo` (testing), `remote` (generic OpenAI-compatible), `vllm` (vLLM-specific with beam search + TLS support).
 
+### Supported Inference Engines
+
+Any OpenAI-compatible inference server works with `type: remote`. The `vllm` type adds beam search parameter injection.
+
+| Engine | Type | Start Command | Notes |
+|--------|------|---------------|-------|
+| **vLLM** | `vllm` | `vllm serve <model> --port 8000` | Beam search, TLS, chunked prefill, speculative decoding |
+| **llama.cpp** | `remote` | `llama-server -m model.gguf --port 8000` | CPU/GPU, GGUF quantized models |
+| **SGLang** | `remote` | `python -m sglang.launch_server --model <model> --port 8000` | RadixAttention, continuous batching |
+| **TensorRT-LLM** | `remote` | Via Triton with OpenAI frontend | NVIDIA-optimized, INT4/INT8/FP8 quantization |
+| **Ollama** | `remote` | `ollama serve` (port 11434) | Easy setup, GGUF models, `model` field required |
+| **OpenAI API** | `remote` | N/A | Use `url: https://api.openai.com` |
+
+Example multi-engine config:
+
+```yaml
+default_backend: vllm_local
+fallback_backend: llamacpp
+backends:
+  vllm_local:
+    type: vllm
+    url: http://localhost:8000
+  llamacpp:
+    type: remote
+    url: http://localhost:8001
+  sglang:
+    type: remote
+    url: http://localhost:8002
+  ollama:
+    type: remote
+    url: http://127.0.0.1:11434
+```
+
 **Operational logging:** The gateway logs startup, errors, fallback events, and stream failures via Python's `logging` module. Set log level with the `LOG_LEVEL` env var (default: `INFO`).
 
 **Request body limit:** Requests larger than `MAX_BODY_BYTES` (default: 1MB) are rejected with `413`. Configure in `.env`.

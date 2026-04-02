@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from datetime import datetime, timezone
@@ -15,7 +16,18 @@ class RequestLogger:
         self.log_dir = os.environ.get("GATEWAY_METRICS_LOG_DIR", "logs/gateway")
         self.disabled = self.log_dir == "-"
 
-    def log(
+    @staticmethod
+    def _write_entry(log_dir: str, entry: dict) -> None:
+        """Synchronous write helper — runs in a thread pool."""
+        log_path = Path(log_dir)
+        log_path.mkdir(parents=True, exist_ok=True)
+        now_str = entry["timestamp"][:10]  # YYYY-MM-DD from ISO timestamp
+        filename = log_path / f"gateway_metrics_{now_str}.jsonl"
+        with open(filename, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+            f.flush()
+
+    async def log(
         self,
         *,
         request_id: str,
@@ -49,9 +61,4 @@ class RequestLogger:
             "status_code": status_code,
         }
 
-        log_path = Path(self.log_dir)
-        log_path.mkdir(parents=True, exist_ok=True)
-        filename = log_path / f"gateway_metrics_{now.strftime('%Y-%m-%d')}.jsonl"
-        with open(filename, "a") as f:
-            f.write(json.dumps(entry) + "\n")
-            f.flush()
+        await asyncio.to_thread(self._write_entry, self.log_dir, entry)

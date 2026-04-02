@@ -142,8 +142,6 @@ async def _instrumented_stream(
     request_id: str = "", backend_name: str = "",
 ):
     """Wrap a streaming generator to record TTFT and inter-chunk timing."""
-    from technique import get_server_profile
-
     ttft = None
     chunk_delays: list[float] = []
     last_chunk_time = start_time
@@ -157,7 +155,7 @@ async def _instrumented_stream(
         yield chunk
     duration = time.perf_counter() - start_time
     record_streaming_metrics(technique, duration, ttft=ttft, chunk_delays=chunk_delays)
-    req_logger.log(
+    await req_logger.log(
         request_id=request_id,
         technique=technique,
         server_profile=get_server_profile(),
@@ -222,7 +220,7 @@ async def chat_completions(request: Request):
             completion_tokens=usage.get("completion_tokens", 0),
             cost_usd=cost,
         )
-        req_logger.log(
+        await req_logger.log(
             request_id=request_id, technique=technique,
             server_profile=get_server_profile(), backend=backend.name,
             duration_s=duration, prompt_tokens=usage.get("prompt_tokens", 0),
@@ -248,7 +246,7 @@ async def chat_completions(request: Request):
         completion_tokens=usage.get("completion_tokens", 0),
         cost_usd=cost,
     )
-    req_logger.log(
+    await req_logger.log(
         request_id=request_id, technique=technique,
         server_profile=get_server_profile(), backend=backend.name,
         duration_s=duration, prompt_tokens=usage.get("prompt_tokens", 0),

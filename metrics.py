@@ -124,7 +124,9 @@ def get_metrics_summary() -> dict:
     profile = get_server_profile()
     summary: dict = {"server_profile": profile, "techniques": {}}
 
-    for technique in ("baseline", "beam_search", "chunked_prefill", "speculative"):
+    from technique import KNOWN_TECHNIQUES
+
+    for technique in sorted(KNOWN_TECHNIQUES):
         labels = {"technique": technique, "server_profile": profile}
         req_count = REQUESTS_TOTAL.labels(**labels)._value.get()
         if req_count == 0:

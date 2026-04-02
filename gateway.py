@@ -1,11 +1,9 @@
 """Core logic for the inference gateway — no framework imports."""
 
+import json
 import time
 import uuid
 from typing import Any
-
-
-MODEL_NAME = "echo"
 
 
 class BackendJSONError(Exception):
@@ -111,13 +109,15 @@ def count_tokens(text: str) -> int:
 # ---------------------------------------------------------------------------
 
 
-def build_response(request_id: str, content: str, prompt: str) -> dict[str, Any]:
+def build_response(
+    request_id: str, content: str, prompt: str, model_name: str = "echo"
+) -> dict[str, Any]:
     """Build a full OpenAI-compatible chat completion response."""
     return {
         "id": request_id,
         "object": "chat.completion",
         "created": int(time.time()),
-        "model": MODEL_NAME,
+        "model": model_name,
         "choices": [
             {
                 "index": 0,
@@ -134,11 +134,12 @@ def build_response(request_id: str, content: str, prompt: str) -> dict[str, Any]
 
 
 def build_sse_chunk(
-    request_id: str, content: str | None, finish_reason: str | None
+    request_id: str,
+    content: str | None,
+    finish_reason: str | None,
+    model_name: str = "echo",
 ) -> str:
     """Build a single SSE `data:` line for streaming."""
-    import json
-
     delta: dict[str, str] = {}
     if content is not None:
         delta["content"] = content
@@ -147,7 +148,7 @@ def build_sse_chunk(
         "id": request_id,
         "object": "chat.completion.chunk",
         "created": int(time.time()),
-        "model": MODEL_NAME,
+        "model": model_name,
         "choices": [
             {
                 "index": 0,

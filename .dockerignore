@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+.git
+.env
+.env.example
+logs/
+docs/
+scripts/
+workloads/
+monitoring/
+test_gateway.*
+tasks/
+review_report.md
+.claude/
+.mcp.json

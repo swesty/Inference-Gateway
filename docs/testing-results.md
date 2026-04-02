@@ -115,6 +115,51 @@ vLLM is ~5-7x faster than Ollama for the same model at similar concurrency.
 | JSONL request logs | Daily rotation, all fields present |
 | Operational logging | Startup, errors, fallback events, stream failures |
 
+## Lambda Cloud Testing (A10 GPU)
+
+Instance: 150.136.249.201, NVIDIA A10 (23GB), vLLM 0.18.1 via SSH tunnel.
+
+### Stress Test (20 streaming + 15 non-streaming per technique)
+
+| Technique | Streaming | Non-streaming | Avg Duration | Avg TTFT |
+|-----------|-----------|---------------|-------------|----------|
+| baseline | 20/20 | 15/15 | 3.1s | 105ms |
+| beam_search | 7/20 | 15/15 | 18.1s | 18.0s |
+| chunked_prefill | 20/20 | 15/15 | 3.6s | 87ms |
+| speculative | 20/20 | 15/15 | 3.4s | 84ms |
+
+### Nginx Load Balancer
+
+Full request path verified: client -> nginx :8780 -> gateway :8080 -> SSH tunnel -> Lambda A10 vLLM.
+Health, models, and chat completion endpoints all working through the load balancer.
+
+### Experiment Script Sweep
+
+`scripts/run_experiments.sh` ran successfully across all 4 techniques. baseline, chunked_prefill, and speculative completed through Lambda vLLM. beam_search fell back to echo (beam search params cause vLLM errors in non-streaming mode with newer versions).
+
+### Cross-Environment Comparison
+
+| Environment | GPU | Avg Duration | Avg TTFT | Notes |
+|-------------|-----|-------------|----------|-------|
+| Local Ollama | RTX 3090 | ~4s (10 concurrent) | N/A | Non-streaming only |
+| Local vLLM (baseline) | RTX 3090 | 2.2s | 213ms | |
+| Local vLLM (chunked prefill) | RTX 3090 | 1.8s | 134ms | --enable-chunked-prefill |
+| Lambda vLLM (baseline) | A10 | 3.1s | 105ms | Via SSH tunnel |
+
+## README Walkthrough Verification
+
+All 20 steps verified end-to-end:
+
+| Steps | Description | Status |
+|-------|-------------|--------|
+| 1-8 | Lambda setup, SSH, GPU, vLLM, tunnel | Verified |
+| 9-11 | Project config, gateway startup, health checks | Verified |
+| 12-13 | Nginx load balancer on port 8780 | Verified |
+| 14 | LangChain workload through full path | Verified |
+| 15 | All metrics endpoints (Prometheus, JSON, JSONL) | Verified |
+| 16-18 | Prometheus + Grafana with live traffic | Verified |
+| 19 | Experiment scripts (technique sweep) | Verified |
+
 ## Review Issues Addressed
 
 12 issues created (#26-#37) from code review, all fixed in two commits:

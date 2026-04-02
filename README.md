@@ -371,6 +371,10 @@ backends:
 
 Backend types: `echo` (testing), `remote` (generic OpenAI-compatible), `vllm` (vLLM-specific with beam search + TLS support).
 
+**Operational logging:** The gateway logs startup, errors, fallback events, and stream failures via Python's `logging` module. Set log level with the `LOG_LEVEL` env var (default: `INFO`).
+
+**Request body limit:** Requests larger than `MAX_BODY_BYTES` (default: 1MB) are rejected with `413`. Configure in `.env`.
+
 See `.env.example` for all environment variables.
 
 ---
@@ -399,6 +403,8 @@ docker compose up -d
 # Prometheus: http://localhost:9090
 # Grafana:    http://localhost:3000 (admin/admin)
 ```
+
+The container runs as a non-root user with a built-in healthcheck. Prometheus and Grafana images are pinned to specific versions for reproducible builds.
 
 ---
 

@@ -33,7 +33,9 @@ def wait_for_gateway(base_url: str, timeout: int = 30) -> bool:
     return False
 
 
-def run_workload(base_url: str, technique: str, topic: str, model: str) -> None:
+def run_workload(
+    base_url: str, technique: str, topic: str, model: str, stream: bool = False,
+) -> None:
     """Run a two-step Researcher -> Writer chain."""
     from langchain_openai import ChatOpenAI
     from langchain_core.prompts import ChatPromptTemplate
@@ -43,6 +45,7 @@ def run_workload(base_url: str, technique: str, topic: str, model: str) -> None:
         base_url=f"{base_url}/v1",
         api_key="not-needed",
         model=model,
+        streaming=stream,
         default_headers={"X-Technique": technique},
     )
 
@@ -75,6 +78,7 @@ def main():
     parser.add_argument("--topic", default="large language models", help="Research topic")
     parser.add_argument("--model", default="tinyllama", help="Model name to request (default: tinyllama)")
     parser.add_argument("--gateway-url", default="http://localhost:8080", help="Gateway base URL")
+    parser.add_argument("--stream", action="store_true", help="Use streaming inference")
     parser.add_argument("--no-wait", action="store_true", help="Skip health check polling")
     args = parser.parse_args()
 
@@ -85,7 +89,7 @@ def main():
             sys.exit(1)
         print("Gateway is ready.\n")
 
-    run_workload(args.gateway_url, args.technique, args.topic, args.model)
+    run_workload(args.gateway_url, args.technique, args.topic, args.model, args.stream)
 
 
 if __name__ == "__main__":

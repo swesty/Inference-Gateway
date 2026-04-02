@@ -45,7 +45,7 @@ class RemoteBackend(Backend):
         self, body: dict[str, Any], request_id: str, stream: bool = False
     ) -> dict[str, Any] | AsyncGenerator[str, None]:
         if stream:
-            return self._forward_stream(body, request_id)
+            return await self._forward_stream(body, request_id)
         return await self._forward(body, request_id)
 
     async def _forward(self, body: dict[str, Any], request_id: str) -> dict[str, Any]:

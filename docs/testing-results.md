@@ -137,6 +137,29 @@ Health, models, and chat completion endpoints all working through the load balan
 
 `scripts/run_experiments.sh` ran successfully across all 4 techniques. baseline, chunked_prefill, and speculative completed through Lambda vLLM. beam_search fell back to echo (beam search params cause vLLM errors in non-streaming mode with newer versions).
 
+## Benchmark Results (scripts/benchmark.py)
+
+Raw throughput and latency measurements using the async benchmark script. Results isolate gateway + backend performance without LangChain overhead.
+
+### Gateway Overhead (Echo Backend)
+
+| Concurrency | Throughput | p50 Latency | p99 Latency |
+|-------------|-----------|-------------|-------------|
+| 50 | **1,063 req/s** | 42ms | 96ms |
+| 50 (streaming) | **966 req/s** | 46ms | 96ms |
+
+The gateway adds ~42ms overhead at 50 concurrent requests — under 2% of a typical LLM request.
+
+### RTX 3090 + vLLM (TinyLlama, max_tokens=32)
+
+| Mode | Concurrency | Throughput | p50 Latency | p50 TTFT | p95 TTFT |
+|------|-------------|-----------|-------------|----------|----------|
+| Non-streaming | 20 | **133 req/s** | 156ms | — | — |
+| Streaming | 20 | **132 req/s** | 159ms | **19ms** | 59ms |
+| Streaming | 50 | **219 req/s** | 218ms | **46ms** | 128ms |
+
+Zero errors across all runs (500/500 requests).
+
 ### Cross-Environment Comparison
 
 | Environment | GPU | Avg Duration | Avg TTFT | Notes |

@@ -19,6 +19,8 @@ services:
       - "8780:8780"
     volumes:
       - ./monitoring/nginx-gateway-lb.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - gateway
     restart: unless-stopped
@@ -30,6 +32,8 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - gateway
     restart: unless-stopped

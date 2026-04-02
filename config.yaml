@@ -1,14 +1,8 @@
-default_backend: echo
-# fallback_backend: echo
+default_backend: vllm_local
+fallback_backend: echo
 backends:
   echo:
     type: echo
-  # local:
-  #   type: local
-  #   url: http://127.0.0.1:8081
-  # modal:
-  #   type: modal
-  #   url: https://YOUR_MODAL_URL
-  # modal_vllm:
-  #   type: vllm
-  #   url: https://YOUR_VLLM_URL
+  vllm_local:
+    type: vllm
+    url: http://127.0.0.1:8000

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 import httpx
+
+logger = logging.getLogger("inference_gateway")
 
 _cached_price: float | None = None
 _fetched: bool = False
@@ -41,7 +44,7 @@ def fetch_lambda_pricing() -> float | None:
             if price is not None:
                 _cached_price = price / 100.0
                 return _cached_price
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to fetch Lambda pricing: %s", e)
 
     return None

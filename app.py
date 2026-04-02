@@ -4,8 +4,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import logging
 import os
 import time
+from contextlib import asynccontextmanager
 
 import httpx
 import uvicorn
@@ -30,14 +32,37 @@ from request_logger import RequestLogger
 from technique import get_server_profile, resolve_engine_backend, resolve_technique
 from tracing import get_trace_id, setup_tracing
 
+logger = logging.getLogger("inference_gateway")
+
 _BACKEND_ERROR = {"error": "backend_error"}
 
-app = FastAPI(title="Inference Gateway")
-setup_tracing(app)
 registry = BackendRegistry.from_config()
 req_logger = RequestLogger()
 
 PORT = int(os.environ.get("PORT", "8080"))
+
+MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", 1_000_000))
+
+
+@asynccontextmanager
+async def lifespan(app):
+    """Startup and shutdown lifecycle for the gateway."""
+    start_metrics_server()
+    logger.info(
+        "Gateway started on port %d with %d backend(s): %s",
+        PORT,
+        len(registry.list_backends()),
+        ", ".join(b.name for b in registry.list_backends()),
+    )
+    yield
+    # Shutdown: close persistent backend clients
+    for b in registry.list_backends():
+        await b.close()
+    logger.info("Gateway shutdown complete")
+
+
+app = FastAPI(title="Inference Gateway", lifespan=lifespan)
+setup_tracing(app)
 
 
 # ---------------------------------------------------------------------------
@@ -47,37 +72,54 @@ PORT = int(os.environ.get("PORT", "8080"))
 
 @app.exception_handler(httpx.HTTPStatusError)
 async def backend_http_error(_request: Request, exc: httpx.HTTPStatusError):
-    return JSONResponse(status_code=502, content=_BACKEND_ERROR)
+    logger.error("Backend HTTP error: %s %s → %d", exc.request.method, exc.request.url, exc.response.status_code)
+    return JSONResponse(status_code=502, content={
+        "error": "backend_error",
+        "upstream_status": exc.response.status_code,
+    })
 
 
 @app.exception_handler(httpx.ConnectError)
 async def backend_connect_error(_request: Request, exc: httpx.ConnectError):
+    logger.error("Backend connect error: %s", exc)
     return JSONResponse(status_code=502, content={"error": "backend_unavailable"})
 
 
 @app.exception_handler(httpx.TimeoutException)
 async def backend_timeout(_request: Request, exc: httpx.TimeoutException):
+    logger.error("Backend timeout: %s", exc)
     return JSONResponse(status_code=504, content={"error": "gateway_timeout"})
 
 
 @app.exception_handler(httpx.ReadError)
 async def backend_read_error(_request: Request, exc: httpx.ReadError):
+    logger.error("Backend read error: %s", exc)
     return JSONResponse(status_code=502, content=_BACKEND_ERROR)
 
 
 @app.exception_handler(httpx.WriteError)
 async def backend_write_error(_request: Request, exc: httpx.WriteError):
+    logger.error("Backend write error: %s", exc)
     return JSONResponse(status_code=502, content=_BACKEND_ERROR)
 
 
 @app.exception_handler(BackendJSONError)
 async def backend_json_error(_request: Request, exc: BackendJSONError):
+    logger.error("Backend returned non-JSON response")
     return JSONResponse(status_code=502, content=_BACKEND_ERROR)
 
 
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
+
+@app.middleware("http")
+async def limit_body_size(request: Request, call_next):
+    content_length = int(request.headers.get("content-length", 0))
+    if content_length > MAX_BODY_BYTES:
+        return JSONResponse({"error": "request_too_large"}, status_code=413)
+    return await call_next(request)
 
 
 @app.get("/healthz")
@@ -145,29 +187,36 @@ async def _instrumented_stream(
     ttft = None
     chunk_delays: list[float] = []
     last_chunk_time = start_time
-    async for chunk in generator:
-        now = time.perf_counter()
-        if ttft is None:
-            ttft = now - start_time
-        else:
-            chunk_delays.append(now - last_chunk_time)
-        last_chunk_time = now
-        yield chunk
-    duration = time.perf_counter() - start_time
-    record_streaming_metrics(technique, duration, ttft=ttft, chunk_delays=chunk_delays)
-    await req_logger.log(
-        request_id=request_id,
-        technique=technique,
-        server_profile=get_server_profile(),
-        backend=backend_name,
-        duration_s=duration,
-        prompt_tokens=0,
-        completion_tokens=0,
-        cost_usd=compute_cost(duration),
-        trace_id=get_trace_id(),
-        stream=True,
-        status_code=200,
-    )
+    error = False
+    try:
+        async for chunk in generator:
+            now = time.perf_counter()
+            if ttft is None:
+                ttft = now - start_time
+            else:
+                chunk_delays.append(now - last_chunk_time)
+            last_chunk_time = now
+            yield chunk
+    except Exception:
+        error = True
+        logger.exception("Stream error from backend %s", backend_name)
+        raise
+    finally:
+        duration = time.perf_counter() - start_time
+        record_streaming_metrics(technique, duration, ttft=ttft, chunk_delays=chunk_delays)
+        await req_logger.log(
+            request_id=request_id,
+            technique=technique,
+            server_profile=get_server_profile(),
+            backend=backend_name,
+            duration_s=duration,
+            prompt_tokens=0,
+            completion_tokens=0,
+            cost_usd=compute_cost(duration),
+            trace_id=get_trace_id(),
+            stream=True,
+            status_code=500 if error else 200,
+        )
 
 
 @app.post("/v1/chat/completions")
@@ -203,7 +252,11 @@ async def chat_completions(request: Request):
         fallback = registry.get_fallback()
         if fallback is None or fallback is backend:
             raise
-        result = await fallback.generate(body, request_id, stream)
+        try:
+            result = await fallback.generate(body, request_id, stream)
+        except Exception:
+            logger.error("Both primary (%s) and fallback (%s) backends failed", backend.name, fallback.name)
+            raise
         duration = time.perf_counter() - start_time
         if stream:
             return StreamingResponse(
@@ -261,5 +314,8 @@ async def chat_completions(request: Request):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    start_metrics_server()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     uvicorn.run(app, host="0.0.0.0", port=PORT)

@@ -230,6 +230,7 @@ async def chat_completions(request: Request):
     headers = {k.lower(): v for k, v in request.headers.items()}
     request_id = resolve_request_id(headers)
     technique = resolve_technique(headers, body)
+    body["technique"] = technique
     stream = body["stream"]
 
     # Engine routing override (env-var driven), then normal registry lookup

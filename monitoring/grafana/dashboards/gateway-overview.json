@@ -7,12 +7,12 @@
   "links": [],
   "panels": [
     {
-      "title": "Request Rate (req/s)",
+      "title": "Request Rate by Technique (req/s)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "rate(requests_total[1m])",
+          "expr": "sum(rate(requests_total[1m])) by (technique)",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }
@@ -23,24 +23,19 @@
       }
     },
     {
-      "title": "Request Duration (p50 / p95 / p99)",
+      "title": "Request Duration by Technique (p50)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, rate(request_duration_seconds_bucket[5m]))",
-          "legendFormat": "p50",
+          "expr": "histogram_quantile(0.5, sum(rate(request_duration_seconds_bucket[5m])) by (le, technique))",
+          "legendFormat": "{{technique}} p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, rate(request_duration_seconds_bucket[5m]))",
-          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum(rate(request_duration_seconds_bucket[5m])) by (le, technique))",
+          "legendFormat": "{{technique}} p95",
           "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(0.99, rate(request_duration_seconds_bucket[5m]))",
-          "legendFormat": "p99",
-          "refId": "C"
         }
       ],
       "fieldConfig": {
@@ -97,18 +92,18 @@
       }
     },
     {
-      "title": "Time to First Token",
+      "title": "Time to First Token by Technique",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, rate(time_to_first_token_seconds_bucket[5m]))",
-          "legendFormat": "p50",
+          "expr": "histogram_quantile(0.5, sum(rate(time_to_first_token_seconds_bucket[5m])) by (le, technique))",
+          "legendFormat": "{{technique}} p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, rate(time_to_first_token_seconds_bucket[5m]))",
-          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum(rate(time_to_first_token_seconds_bucket[5m])) by (le, technique))",
+          "legendFormat": "{{technique}} p95",
           "refId": "B"
         }
       ],
@@ -118,13 +113,13 @@
       }
     },
     {
-      "title": "Tokens per Second",
+      "title": "Tokens per Second by Technique",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, rate(completion_tokens_per_second_bucket[5m]))",
-          "legendFormat": "p50 tok/s",
+          "expr": "histogram_quantile(0.5, sum(rate(completion_tokens_per_second_bucket[5m])) by (le, technique))",
+          "legendFormat": "{{technique}} p50 tok/s",
           "refId": "A"
         }
       ],
@@ -132,6 +127,39 @@
         "defaults": { "unit": "short" },
         "overrides": []
       }
+    },
+    {
+      "title": "Inter-Chunk Delay by Technique",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(stream_inter_chunk_delay_seconds_bucket[5m])) by (le, technique))",
+          "legendFormat": "{{technique}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(stream_inter_chunk_delay_seconds_bucket[5m])) by (le, technique))",
+          "legendFormat": "{{technique}} p95",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Requests by Technique",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "sum(requests_total) by (technique)",
+          "legendFormat": "{{technique}}",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "schemaVersion": 39,

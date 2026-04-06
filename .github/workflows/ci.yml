@@ -23,5 +23,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --no-dev
 
+      - name: Use echo-only config for tests
+        run: |
+          printf 'default_backend: echo\nbackends:\n  echo:\n    type: echo\n' > config.yaml
+
       - name: Run tests
         run: uv run python test_gateway.py

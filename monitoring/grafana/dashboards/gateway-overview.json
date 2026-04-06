@@ -26,8 +26,8 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "sum(rate(requests_total{server_profile=~\"$server_profile\"}[1m])) by (technique, server_profile)",
-          "legendFormat": "{{server_profile}} / {{technique}}",
+          "expr": "sum(rate(requests_total{server_profile=~\"$server_profile\"}[1m])) by (technique)",
+          "legendFormat": "{{technique}}",
           "refId": "A"
         }
       ],
@@ -46,17 +46,17 @@
       "targets": [
         {
           "expr": "histogram_quantile(0.5, sum(rate(request_duration_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p50",
+          "legendFormat": "{{technique}} p50",
           "refId": "A"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(request_duration_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p95",
+          "legendFormat": "{{technique}} p95",
           "refId": "B"
         },
         {
           "expr": "histogram_quantile(0.99, sum(rate(request_duration_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p99",
+          "legendFormat": "{{technique}} p99",
           "refId": "C"
         }
       ],
@@ -81,7 +81,7 @@
         },
         {
           "expr": "sum(rate(requests_total{server_profile=~\"$server_profile\"}[5m])) by (technique, server_profile)",
-          "legendFormat": "{{server_profile}} / {{technique}} total",
+          "legendFormat": "{{technique}} total",
           "refId": "B"
         }
       ],
@@ -101,12 +101,12 @@
       "targets": [
         {
           "expr": "sum(rate(prompt_tokens_total{server_profile=~\"$server_profile\"}[5m])) by (server_profile)",
-          "legendFormat": "{{server_profile}} prompt tok/s",
+          "legendFormat": "Prompt tok/s",
           "refId": "A"
         },
         {
           "expr": "sum(rate(completion_tokens_total{server_profile=~\"$server_profile\"}[5m])) by (server_profile)",
-          "legendFormat": "{{server_profile}} completion tok/s",
+          "legendFormat": "Completion tok/s",
           "refId": "B"
         }
       ],
@@ -206,12 +206,12 @@
       "targets": [
         {
           "expr": "histogram_quantile(0.5, sum(rate(time_to_first_token_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p50",
+          "legendFormat": "{{technique}} p50",
           "refId": "A"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(time_to_first_token_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p95",
+          "legendFormat": "{{technique}} p95",
           "refId": "B"
         }
       ],
@@ -230,12 +230,12 @@
       "targets": [
         {
           "expr": "histogram_quantile(0.5, sum(rate(time_per_output_token_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p50",
+          "legendFormat": "{{technique}} p50",
           "refId": "A"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(time_per_output_token_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p95",
+          "legendFormat": "{{technique}} p95",
           "refId": "B"
         }
       ],
@@ -254,12 +254,12 @@
       "targets": [
         {
           "expr": "histogram_quantile(0.5, sum(rate(completion_tokens_per_second_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p50",
+          "legendFormat": "{{technique}} p50",
           "refId": "A"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(completion_tokens_per_second_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p95",
+          "legendFormat": "{{technique}} p95",
           "refId": "B"
         }
       ],
@@ -278,12 +278,12 @@
       "targets": [
         {
           "expr": "histogram_quantile(0.5, sum(rate(stream_inter_chunk_delay_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p50",
+          "legendFormat": "{{technique}} p50",
           "refId": "A"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(stream_inter_chunk_delay_seconds_bucket{server_profile=~\"$server_profile\"}[5m])) by (le, technique, server_profile))",
-          "legendFormat": "{{server_profile}} / {{technique}} p95",
+          "legendFormat": "{{technique}} p95",
           "refId": "B"
         }
       ],
@@ -302,7 +302,7 @@
       "targets": [
         {
           "expr": "sum(requests_total{server_profile=~\"$server_profile\"}) by (technique, server_profile)",
-          "legendFormat": "{{server_profile}} / {{technique}}",
+          "legendFormat": "{{technique}}",
           "refId": "A"
         }
       ]
@@ -314,7 +314,7 @@
       "targets": [
         {
           "expr": "sum(rate(estimated_gpu_cost_usd_total{server_profile=~\"$server_profile\"}[5m])) by (server_profile) * 3600",
-          "legendFormat": "{{server_profile}} $/hr",
+          "legendFormat": "GPU Cost $/hr",
           "refId": "A"
         }
       ],

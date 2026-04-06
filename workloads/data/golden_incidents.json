@@ -1,0 +1,65 @@
+[
+  {
+    "id": "INC-001",
+    "title": "Docker container OOM killed (inference-gateway)",
+    "description": "The inference-gateway container was killed by the kernel OOM killer at 02:14 UTC. Docker inspect shows exit code 137. The container had an 8GiB memory limit and was processing a batch of concurrent requests through the chunked_prefill engine. dmesg confirms oom-kill in the docker cgroup scope. Gateway metrics endpoint is unreachable.",
+    "source": "automated_alert",
+    "timestamp": "2026-04-06T02:14:01Z",
+    "expected_severity": "critical",
+    "expected_category": "container"
+  },
+  {
+    "id": "INC-002",
+    "title": "Disk usage 94% on /home/gesserit",
+    "description": "Disk utilization on /home/gesserit has reached 94%, triggering the 90% warning threshold. The largest consumer is ~/.cache/huggingface at 412GB (model weights and tokenizer caches). Docker volumes under /var/lib/docker account for another 189GB. Log rotation on /var/log/nginx appears stalled. No immediate service impact but risk of write failures if usage reaches 100%.",
+    "source": "monitoring",
+    "timestamp": "2026-04-06T03:30:15Z",
+    "expected_severity": "medium",
+    "expected_category": "storage"
+  },
+  {
+    "id": "INC-003",
+    "title": "nginx returning 502 Bad Gateway on all inference requests",
+    "description": "All requests to the load balancer at :8780 are returning HTTP 502. nginx error logs show 'connect() failed (111: Connection refused) while connecting to upstream' pointing at 127.0.0.1:8080. The gateway process appears to have crashed or is not listening. Prometheus scrape to :9101 is also failing. This is a full inference outage affecting all techniques.",
+    "source": "user_report",
+    "timestamp": "2026-04-06T02:45:11Z",
+    "expected_severity": "critical",
+    "expected_category": "gateway"
+  },
+  {
+    "id": "INC-004",
+    "title": "SSH tunnel to Jarvis dropped — vLLM backend unreachable",
+    "description": "The SSH tunnel forwarding localhost:8081 to Jarvis (192.168.1.50:8000) has terminated. ss -tlnp shows no process listening on port 8081. Gateway health check reports vllm_remote backend as 'error: ConnectError'. All inference requests are falling back to the echo backend. Jarvis itself may still be running vLLM but is unreachable from gesserit.",
+    "source": "automated_alert",
+    "timestamp": "2026-04-06T04:12:33Z",
+    "expected_severity": "high",
+    "expected_category": "network"
+  },
+  {
+    "id": "INC-005",
+    "title": "Prometheus scrape target down (gateway metrics :9101)",
+    "description": "Prometheus reports the inference-gateway scrape target at localhost:9101 as DOWN for the last 3 scrape intervals (45s). The gateway API at :8080 is still responding to health checks, so the gateway process is running but the metrics endpoint may have crashed or the metrics port is blocked. Grafana dashboards are showing 'No data' for all gateway panels.",
+    "source": "monitoring",
+    "timestamp": "2026-04-06T05:00:01Z",
+    "expected_severity": "medium",
+    "expected_category": "monitoring"
+  },
+  {
+    "id": "INC-006",
+    "title": "High CPU from runaway pytest process consuming 4 cores",
+    "description": "A pytest process (PID 18234) has been running for 45 minutes and is consuming 398% CPU (4 cores saturated). System load average is 6.8 on a 4-core machine. The process was spawned by crontab and appears stuck in an infinite retry loop. Available memory is down to 2 GiB. Other services are responsive but sluggish due to CPU contention.",
+    "source": "automated_alert",
+    "timestamp": "2026-04-06T01:55:00Z",
+    "expected_severity": "low",
+    "expected_category": "process"
+  },
+  {
+    "id": "INC-007",
+    "title": "Grafana dashboard queries timing out — Prometheus overloaded",
+    "description": "Grafana is returning 504 errors when loading the Inference Gateway Overview dashboard. Query inspector shows all PromQL queries timing out after 30s. Prometheus logs indicate high query load and potential TSDB head series cardinality issue (248k series). The prometheus container is using 3.2GiB RAM. Simple instant queries still work but range queries spanning more than 15 minutes fail.",
+    "source": "user_report",
+    "timestamp": "2026-04-06T05:15:00Z",
+    "expected_severity": "high",
+    "expected_category": "monitoring"
+  }
+]

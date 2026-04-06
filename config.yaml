@@ -1,8 +1,11 @@
-default_backend: vllm_local
+default_backend: vllm_jarvis
 fallback_backend: echo
 backends:
   echo:
     type: echo
+  vllm_jarvis:
+    type: vllm
+    url: http://jarvis.swesty.net:8000
   vllm_local:
     type: vllm
     url: http://127.0.0.1:8000

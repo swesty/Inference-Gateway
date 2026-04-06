@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """LangChain two-step workload: Researcher -> Writer.
 
+Simple demo workload. For the full agentic workload, see triage_agent/.
+
 Connects to the inference gateway via OpenAI-compatible API.
 Sends X-Technique header for technique labeling.
 
 Usage:
-    uv run python workload.py --technique baseline
+    uv run python workload.py --technique baseline --model nemotron-lora
     uv run python workload.py --technique beam_search --topic "quantum computing"
 """
 

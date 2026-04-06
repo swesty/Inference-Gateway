@@ -3,14 +3,14 @@
 #
 # Usage (run ON the remote instance):
 #   bash setup_vllm_remote.sh
-#   MODEL_NAME=TinyLlama/TinyLlama-1.1B-Chat-v1.0 bash setup_vllm_remote.sh
+#   MODEL_NAME=nvidia/Nemotron-Nano-3-30B-Instruct bash setup_vllm_remote.sh
 #
 # Or via SSH:
 #   ssh user@gpu-host 'bash -s' < scripts/setup_vllm_remote.sh
 
 set -euo pipefail
 
-MODEL_NAME="${MODEL_NAME:-TinyLlama/TinyLlama-1.1B-Chat-v1.0}"
+MODEL_NAME="${MODEL_NAME:-nvidia/Nemotron-Nano-3-30B-Instruct}"
 VLLM_PORT="${VLLM_PORT:-8000}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-2048}"
 

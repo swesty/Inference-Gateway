@@ -5,10 +5,10 @@ Deploy the inference gateway with a remote GPU-hosted vLLM backend via SSH tunne
 ## Architecture
 
 ```
-[Your Machine]                    [Cloud GPU Instance]
-  gateway:8080  ─── SSH tunnel ──>  vLLM:8000
-  prometheus:9090                   (TinyLlama / your model)
-  grafana:3000
+[gesserit]                         [Jarvis (LAN) / Cloud GPU]
+  gateway:8080  ─── LAN / SSH ───>  vLLM:8000
+  prometheus:9090                    Nemotron Nano 3 30B nvfp4
+  grafana:3000                       RTX 6000 Pro Blackwell 96GB
 ```
 
 ## 1. Launch a GPU Instance
@@ -37,10 +37,10 @@ bash scripts/setup_vllm_remote.sh
 ssh user@gpu-host 'bash -s' < scripts/setup_vllm_remote.sh
 
 # Option C: Custom model
-ssh user@gpu-host MODEL_NAME=meta-llama/Llama-2-7b-chat-hf bash -s < scripts/setup_vllm_remote.sh
+ssh user@gpu-host MODEL_NAME=nvidia/Nemotron-Nano-3-30B-Instruct bash -s < scripts/setup_vllm_remote.sh
 ```
 
-The default model is `TinyLlama/TinyLlama-1.1B-Chat-v1.0` (small, fast, good for testing).
+The default model is `nvidia/Nemotron-Nano-3-30B-Instruct` (served as `nemotron-lora`). For testing on smaller GPUs, use `TinyLlama/TinyLlama-1.1B-Chat-v1.0`.
 
 ## 3. Open the SSH Tunnel
 
@@ -63,21 +63,21 @@ Environment variables:
 Update `config.yaml` to include the vLLM backend:
 
 ```yaml
-default_backend: vllm_remote
+default_backend: vllm_jarvis
 fallback_backend: echo
 backends:
   echo:
     type: echo
-  vllm_remote:
+  vllm_jarvis:
     type: vllm
-    url: http://localhost:8081
+    url: http://jarvis.swesty.net:8000  # LAN direct; use http://localhost:8081 with SSH tunnel
 ```
 
 Update `.env`:
 
 ```bash
 PORT=8080
-GPU_HOURLY_COST_USD=1.10  # Lambda A10 pricing
+GPU_HOURLY_COST_USD=0.0   # Owned hardware (Jarvis); set to 1.10 for Lambda A10
 ```
 
 ## 5. Start the Gateway
@@ -101,7 +101,7 @@ docker compose up -d
 # Health check
 curl http://localhost:8080/health
 
-# Should show vllm_remote backend as "ok"
+# Should show vllm_jarvis (or vllm_remote) backend as "ok"
 # If it shows "error", check the SSH tunnel is running
 
 # Send a request
@@ -148,7 +148,7 @@ The tunnel script uses `ServerAliveInterval=30` to keep the connection alive. If
 
 ### vLLM out of memory
 
-- Use a smaller model (`TinyLlama` works on most GPUs)
+- Use a smaller model (`TinyLlama` or `Nemotron-Mini-4B` for smaller GPUs)
 - Reduce `MAX_MODEL_LEN` in the setup script
 - Check GPU memory: `nvidia-smi`
 

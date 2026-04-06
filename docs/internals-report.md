@@ -435,13 +435,13 @@ The container runs as non-root (`appuser`) and includes a `HEALTHCHECK` against 
 ### 8.3 Cloud Deployment: SSH Tunnel Pattern
 
 ```
-Laptop                              Lambda Cloud GPU
-┌──────────────────┐                ┌──────────────────┐
-│ Gateway :8080    │─── SSH tunnel──│ vLLM :8000       │
-│ nginx   :8780    │  localhost:8000│                  │
-│ Prometheus :9090 │                │ RTX 3090 / A10   │
-│ Grafana  :3000   │                │ TinyLlama 1.1B   │
-└──────────────────┘                └──────────────────┘
+gesserit (dev workstation)          Jarvis (ML workstation, LAN)
+┌──────────────────┐                ┌──────────────────────────┐
+│ Gateway :8080    │── LAN direct ──│ vLLM :8000               │
+│ nginx   :8780    │                │                          │
+│ Prometheus :9090 │                │ RTX 6000 Pro Blackwell   │
+│ Grafana  :3000   │                │ Nemotron Nano 3 30B      │
+└──────────────────┘                └──────────────────────────┘
 ```
 
 The gateway runs on the laptop; the GPU instance is dedicated to inference. This separation means:
@@ -486,7 +486,7 @@ Raw throughput and latency measured with `scripts/benchmark.py` (async, concurre
 
 The gateway adds ~42ms overhead per request—under 2% of a typical LLM request duration.
 
-#### vLLM on RTX 3090 (TinyLlama 1.1B, max_tokens=32)
+#### Historical: vLLM on RTX 3090 (TinyLlama 1.1B, max_tokens=32)
 
 | Mode | Concurrency | Throughput | p50 Latency | p50 TTFT | p95 TTFT |
 |------|-------------|-----------|-------------|----------|----------|
@@ -498,6 +498,17 @@ Zero errors across all runs (500/500 requests).
 
 ### 9.3 Cross-Environment Comparison
 
+**Current (Nemotron 30B on Jarvis):**
+
+| Arm | Technique | Concurrency | p50 | p95 | Throughput | Category Acc |
+|-----|-----------|-------------|-----|-----|------------|-------------|
+| baseline | baseline | 1 | 7.1s | 15.3s | 0.13 inc/s | 85.7% |
+| chunked_prefill | chunked_prefill | 1 | 7.1s | 19.0s | 0.10 inc/s | 57.1% |
+| baseline | baseline | 3 | 7.2s | 28.2s | 0.25 inc/s | 42.9% |
+| chunked_prefill | chunked_prefill | 3 | 8.6s | 26.5s | 0.16 inc/s | 57.1% |
+
+**Historical (TinyLlama on RTX 3090 / Lambda A10):**
+
 | Environment | GPU | Avg Duration | Avg TTFT | Notes |
 |-------------|-----|-------------|----------|-------|
 | Local Ollama | RTX 3090 | ~4s (c=10) | N/A | Non-streaming only |
@@ -505,7 +516,7 @@ Zero errors across all runs (500/500 requests).
 | Local vLLM (chunked prefill) | RTX 3090 | 1.8s | 134ms | `--enable-chunked-prefill` |
 | Lambda vLLM (baseline) | A10 | 3.1s | 105ms | Via SSH tunnel |
 
-Key findings:
+Key findings (historical):
 - vLLM is **5-7x faster** than Ollama for the same model at similar concurrency
 - Chunked prefill reduces TTFT by **37%** (213ms → 134ms) on the RTX 3090
 - The Lambda A10 achieves lower TTFT (105ms) despite higher overall latency (network overhead from SSH tunnel)

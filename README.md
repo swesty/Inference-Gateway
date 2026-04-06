@@ -2,9 +2,9 @@
 
 An OpenAI-compatible HTTP inference gateway. Routes `POST /v1/chat/completions` to named backends defined in `config.yaml`, with streaming, fallback routing, Prometheus metrics, JSONL logging, and optional OpenTelemetry tracing.
 
-GPU inference runs on a **[Lambda Cloud](https://cloud.lambdalabs.com/)** instance. Your **laptop** runs the LangChain **workload** → **nginx** (load balancer) → the FastAPI **gateway** → vLLM over an **SSH tunnel**.
+GPU inference runs on **Jarvis** (RTX 6000 Pro Blackwell 96GB, LAN) serving **Nemotron Nano 3 30B** (nvfp4) via vLLM. **Gesserit** (dev workstation) runs the **triage agent** → **nginx** (load balancer) → the FastAPI **gateway** → vLLM on Jarvis over LAN. An SSH tunnel is used when the GPU host is remote (e.g., Lambda Cloud).
 
-**You need:** Python 3.12+, **[uv](https://docs.astral.sh/uv/)** on the laptop, **nginx** for Steps 12–13, a Lambda account, and **Docker** for Steps 16–17 (Prometheus + Grafana).
+**You need:** Python 3.12+, **[uv](https://docs.astral.sh/uv/)**, **nginx** for the load balancer, and **Docker** for Prometheus + Grafana.
 
 ---
 
@@ -38,7 +38,7 @@ Copy the full line from the `.pub` file. Never share the file without `.pub`.
 ### Step 3 — Launch a GPU instance in Lambda
 
 1. **Instances** → **Launch instance**.
-2. Pick a **region** and **GPU** type (1× A10 is plenty for TinyLlama 1.1B).
+2. Pick a **region** and **GPU** type (A10 for small models, A100+ for Nemotron 30B).
 3. **Base image:** choose **Lambda Stack 24.04** or **Lambda Stack 22.04** (includes NVIDIA driver, CUDA, Python).
 4. Select your **SSH key** from Step 2.
 5. **Launch** and wait until the instance is **running**.
@@ -77,8 +77,8 @@ source ~/vllm-env/bin/activate
 pip install -U pip wheel
 pip install "vllm==0.13.0"
 
-vllm serve TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
-  --served-model-name texttinyllama \
+vllm serve nvidia/Nemotron-Nano-3-30B-Instruct \
+  --served-model-name nemotron-lora \
   --host 0.0.0.0 \
   --port 8000
 ```
@@ -128,7 +128,7 @@ ssh -i ~/.ssh/id_ed25519_lambda \
 curl -sS http://127.0.0.1:8000/v1/models
 ```
 
-You should see JSON with `"id":"texttinyllama"`. If this fails, fix Step 6 or 7 before continuing.
+You should see JSON with `"id":"nemotron-lora"`. If this fails, fix Step 6 or 7 before continuing.
 
 ---
 
@@ -157,14 +157,14 @@ uv sync
 Update `config.yaml` to include the vLLM backend:
 
 ```yaml
-default_backend: vllm_remote
+default_backend: vllm_jarvis
 fallback_backend: echo
 backends:
   echo:
     type: echo
-  vllm_remote:
+  vllm_jarvis:
     type: vllm
-    url: http://localhost:8000
+    url: http://jarvis.swesty.net:8000  # LAN direct; use http://localhost:8081 with SSH tunnel
 ```
 
 ---
@@ -187,7 +187,7 @@ curl -sS http://127.0.0.1:8080/health
 curl -sS http://127.0.0.1:8080/v1/models
 ```
 
-You want `200` on `/health` with `"status":"healthy"` and `texttinyllama` in `/v1/models`.
+You want `200` on `/health` with `"status":"healthy"` and `nemotron-lora` in `/v1/models`.
 
 ---
 
@@ -216,7 +216,7 @@ curl -sS http://127.0.0.1:8780/v1/models
 curl -sS "http://127.0.0.1:8780/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "X-Technique: baseline" \
-  -d '{"model":"texttinyllama","messages":[{"role":"user","content":"Say hi in five words."}],"max_tokens":32}'
+  -d '{"model":"nemotron-lora","messages":[{"role":"user","content":"Say hi in five words."}],"max_tokens":32}'
 ```
 
 If `8780` refuses: Step 12 didn't start. If `502`: gateway on `8080` is not up.
@@ -233,7 +233,7 @@ uv sync
 uv run python workload.py --technique baseline
 ```
 
-**Path:** Workload → nginx `8780` → gateway `8080` → tunnel → vLLM. Model name `texttinyllama` must match `--served-model-name`.
+**Path:** Workload → nginx `8780` → gateway `8080` → tunnel → vLLM. Model name `nemotron-lora` must match `--served-model-name`.
 
 ---
 
@@ -327,7 +327,7 @@ After each server config change: set `VLLM_SERVER_PROFILE` in `.env`, restart ga
 | 8 | Workload LLM errors | Run Step 13 curl to verify gateway+vLLM end-to-end |
 | 9 | Grafana empty / Prometheus targets red | Confirm Steps 6, 7, 10 running; `curl http://127.0.0.1:9101/metrics` |
 | 10 | No metrics after requests | Restart gateway; widen Grafana time range |
-| 11 | vLLM OOM | Use smaller model (TinyLlama) or reduce `MAX_MODEL_LEN` |
+| 11 | vLLM OOM | Reduce `MAX_MODEL_LEN`, lower batch size, or use a smaller model |
 | 12 | SSH tunnel drops | Use `tmux`/`screen`; tunnel script uses `ServerAliveInterval=30` |
 
 ---
@@ -449,3 +449,35 @@ The container runs as a non-root user with a built-in healthcheck. Prometheus an
 - [Observability](docs/observability.md) — Prometheus metrics, JSONL logging, OpenTelemetry tracing, cost tracking, Grafana dashboards
 - [Engine Routing & A/B Testing](docs/engine-routing.md) — Technique resolution, engine routing strategies, vLLM engine profiles, A/B testing guide
 - [Cloud Deployment](docs/cloud-deployment.md) — Lambda/Anyscale setup with SSH tunnel
+
+---
+
+## Experiment Results
+
+Triage agent workload (7 golden incidents) through the full path: nginx → gateway → Jarvis vLLM (Nemotron Nano 3 30B, nvfp4, RTX 6000 Pro Blackwell 96GB).
+
+| Arm | Technique | Concurrency | Success | p50 Latency | p95 Latency | Throughput | Category Acc |
+|-----|-----------|-------------|---------|-------------|-------------|------------|-------------|
+| 1 | baseline | 1 | 7/7 | 7.1s | 15.3s | 0.13 inc/s | 85.7% |
+| 2 | chunked_prefill | 1 | 7/7 | 7.1s | 19.0s | 0.10 inc/s | 57.1% |
+| 3 | baseline | 3 | 7/7 | 7.2s | 28.2s | 0.25 inc/s | 42.9% |
+| 4 | chunked_prefill | 3 | 7/7 | 8.6s | 26.5s | 0.16 inc/s | 57.1% |
+
+Raw benchmark (single-turn, 30 requests, concurrency=5, max_tokens=64):
+
+| Technique | Throughput | p50 | p95 | Errors |
+|-----------|-----------|-----|-----|--------|
+| baseline | 5.9 req/s | 901ms | 1001ms | 0 |
+| chunked_prefill | 6.3 req/s | 827ms | 1006ms | 0 |
+
+**Pinned versions:** vLLM 0.8+, Nemotron Nano 3 30B nvfp4, Prometheus v3.3.0, Grafana 11.6.0.
+
+---
+
+## Reflection
+
+The biggest surprise was that **chunked prefill did not improve agentic workload latency** — in fact it was slightly worse (7.1s vs 7.1s p50 sequential, but 19.0s vs 15.3s at p95). The hypothesis was that the recommend step's longer context (tool results injected into the prompt) would benefit from chunked prefill's pipelined prefill scheduling. In practice, the triage agent's prompts are short enough (~500 tokens) that the overhead of chunked scheduling exceeds its benefit. Chunked prefill shines with long shared prefixes (RAG, system prompts reused across requests), not short unique prompts.
+
+The second insight was the **throughput vs latency tradeoff under concurrency**. At concurrency=3, wall-clock time dropped 47% (53s → 28s for baseline) but p95 latency nearly doubled (15s → 28s). This is the classic queuing effect — vLLM batches concurrent requests, improving GPU utilization but increasing per-request wait time. For an SRE triage agent where incidents arrive sporadically, sequential processing with lower p95 is the better operating point.
+
+If I were to add one more piece of instrumentation, it would be **per-step Prometheus histograms** exported from the agent itself (not just the gateway). Currently step latencies are only in the JSON output. Exposing `triage_step_duration_seconds{step="classify",technique="baseline"}` as a Prometheus metric would let the Grafana dashboard show the agent's internal performance alongside gateway metrics, completing the end-to-end observability story.

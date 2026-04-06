@@ -9,7 +9,9 @@
 #
 # Run these on the GPU host (e.g. Lambda), not your laptop.
 
-: "${VLLM_MODEL:=TinyLlama/TinyLlama-1.1B-Chat-v1.0}"
-: "${VLLM_SERVED_NAME:=texttinyllama}"
+: "${VLLM_MODEL:=nvidia/Llama-3.1-Nemotron-70B-Instruct-HF}"
+: "${VLLM_SERVED_NAME:=nemotron}"
+# Lightweight fallback for CI/testing (override VLLM_MODEL to use):
+#   VLLM_MODEL=TinyLlama/TinyLlama-1.1B-Chat-v1.0 VLLM_SERVED_NAME=tinyllama bash baseline.sh
 : "${VLLM_BIND_HOST:=0.0.0.0}"
 : "${VLLM_SERVE_PORT:=8000}"

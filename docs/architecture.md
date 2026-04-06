@@ -21,7 +21,7 @@ flowchart LR
     GW --> Echo
     GW --> Remote
     GW --> VLLM
-    VLLM -->|SSH tunnel| GPU
+    VLLM -->|LAN / SSH tunnel| GPU
     Remote -->|HTTP| GPU
     GW -.->|:9101/metrics| Prom
     Prom --> Graf
@@ -37,7 +37,7 @@ Client Request
     ↓
 [Backend]  ← echo (testing) | vllm | remote (generic)
     ↓
-[vLLM :8000]  ← via SSH tunnel to cloud GPU
+[vLLM :8000]  ← LAN direct to Jarvis (or via SSH tunnel to cloud GPU)
 ```
 
 The gateway is an OpenAI-compatible HTTP proxy. It validates requests, resolves technique labels, selects a backend, forwards the request, records metrics, logs the result, and returns the response.

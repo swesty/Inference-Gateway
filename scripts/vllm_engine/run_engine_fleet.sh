@@ -5,7 +5,7 @@
 # On your laptop: set VLLM_AUTO_ENGINE_ROUTING=true in .env, keep the base URL
 # pointing at port 8000, and forward all ports in the SSH tunnel.
 #
-# VRAM: multiple TinyLlama processes may fit one GPU; larger models may OOM.
+# VRAM: multiple small model processes may fit one GPU; larger models (e.g., Nemotron 30B) need 96GB+.
 set -euo pipefail
 cd "$(dirname "$0")"
 source ./_common.sh

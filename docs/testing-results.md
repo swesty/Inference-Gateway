@@ -1,8 +1,33 @@
-# Testing Results — 2026-04-02
+# Testing Results
 
-Local testing on RTX 3090 (24GB VRAM) with TinyLlama 1.1B.
+## Current Environment (2026-04-06)
 
-## Environment
+- **GPU**: NVIDIA RTX 6000 Pro Blackwell 96GB (Jarvis, LAN)
+- **Model**: Nemotron Nano 3 30B nvfp4 (served as `nemotron-lora`)
+- **Gateway**: FastAPI on gesserit :8080, Prometheus :9101, nginx LB :8780
+- **Workload**: Ops/Triage agent (4-step: classify → investigate → recommend → summarize), 7 golden incidents
+
+### Triage Agent Results (Nemotron 30B on Jarvis)
+
+| Arm | Technique | Concurrency | Success | p50 | p95 | Throughput | Category Acc |
+|-----|-----------|-------------|---------|-----|-----|------------|-------------|
+| 1 | baseline | 1 | 7/7 | 7.1s | 15.3s | 0.13 inc/s | 85.7% |
+| 2 | chunked_prefill | 1 | 7/7 | 7.1s | 19.0s | 0.10 inc/s | 57.1% |
+| 3 | baseline | 3 | 7/7 | 7.2s | 28.2s | 0.25 inc/s | 42.9% |
+| 4 | chunked_prefill | 3 | 7/7 | 8.6s | 26.5s | 0.16 inc/s | 57.1% |
+
+### Raw Benchmark (Nemotron 30B, 30 requests, concurrency=5, max_tokens=64)
+
+| Technique | Throughput | p50 | p95 | Errors |
+|-----------|-----------|-----|-----|--------|
+| baseline | 5.9 req/s | 901ms | 1001ms | 0 |
+| chunked_prefill | 6.3 req/s | 827ms | 1006ms | 0 |
+
+---
+
+## Historical Environment (2026-04-02)
+
+> Results below are from earlier testing on RTX 3090 with TinyLlama 1.1B. Kept for reference.
 
 - **GPU**: NVIDIA GeForce RTX 3090, 24GB VRAM, CUDA 8.6, driver 580.119.02
 - **Model**: TinyLlama/TinyLlama-1.1B-Chat-v1.0 (max_model_len=2048)

@@ -27,6 +27,10 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.3.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-admin-api"
+      - "--storage.tsdb.path=/prometheus"
     ports:
       - "9090:9090"
     volumes:
